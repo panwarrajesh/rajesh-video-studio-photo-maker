@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum TrackType {
+  VIDEO
+  IMAGE
+  AUDIO
+  TEXT
+  OVERLAY
+  EFFECTS
+}
+
+enum MediaType {
+  VIDEO
+  IMAGE
+  AUDIO
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String
+  passwordHash String
+  plan         Plan           @default(FREE)
+  createdAt    DateTime       @default(now())
+  projects     Project[]
+  media        ProjectMedia[]
+}
+
+model Project {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  width        Int             @default(1920)
+  height       Int             @default(1080)
+  fps          Int             @default(30)
+  duration     Float           @default(0)
+  thumbnailUrl String?         @db.Text
+  markers      Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  tracks       TimelineTrack[]
+  media        ProjectMedia[]
+  exports      ExportJob[]
+
+  @@index([userId, updatedAt])
+}
+
+model ProjectMedia {
+  id        String         @id @default(cuid())
+  projectId String?
+  project   Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      MediaType
+  url       String         @db.Text
+  size      Int
+  duration  Float?
+  clips     TimelineClip[]
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+model TimelineTrack {
+  id        String         @id @default(cuid())
+  projectId String
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      TrackType
+  order     Int
+  locked    Boolean        @default(false)
+  hidden    Boolean        @default(false)
+  muted     Boolean        @default(false)
+  clips     TimelineClip[]
+
+  @@index([projectId])
+}
+
+model TimelineClip {
+  id          String         @id
+  trackId     String
+  track       TimelineTrack  @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  mediaId     String?
+  media       ProjectMedia?  @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  start       Float
+  duration    Float
+  trimIn      Float          @default(0)
+  speed       Float          @default(1)
+  srcLen      Float          @default(3600)
+  kind        String?
+  props       Json
+  keyframes   Json?
+  texts       TextElement[]
+  audio       AudioElement[]
+  effects     Effect[]
+  transitions Transition[]
+
+  @@index([trackId])
+  @@index([mediaId])
+}
+
+model TextElement {
+  id      String       @id @default(cuid())
+  clipId  String
+  clip    TimelineClip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  content String       @db.Text
+  style   Json?
+
+  @@index([clipId])
+}
+
+model AudioElement {
+  id      String       @id @default(cuid())
+  clipId  String
+  clip    TimelineClip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  volume  Float        @default(1)
+  fadeIn  Float        @default(0)
+  fadeOut Float        @default(0)
+
+  @@index([clipId])
+}
+
+model Effect {
+  id        String       @id @default(cuid())
+  clipId    String
+  clip      TimelineClip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  type      String
+  startTime Float
+  endTime   Float
+  intensity Float        @default(1)
+  params    Json?
+
+  @@index([clipId])
+}
+
+model Transition {
+  id       String       @id @default(cuid())
+  clipId   String
+  clip     TimelineClip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  type     String
+  duration Float        @default(0.5)
+
+  @@index([clipId])
+}
+
+model ExportJob {
+  id        String    @id @default(cuid())
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status    JobStatus @default(QUEUED)
+  settings  Json
+  outputUrl String?   @db.Text
+  progress  Int       @default(0)
+  warnings  Json?
+  error     String?   @db.Text
+  createdAt DateTime  @default(now())
+
+  @@index([projectId])
+}

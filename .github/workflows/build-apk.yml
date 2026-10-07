@@ -1,0 +1,32 @@
+name: Build Android APK
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main, master]
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - name: Install and build web app
+        working-directory: frontend
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          if [ -n "$API_URL" ]; then export VITE_API_URL="${API_URL%/}/api"; fi
+          npm install
+          npm run build
+          npx cap sync android
+      - name: Build debug APK
+        working-directory: frontend/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rajesh-video-studio-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk

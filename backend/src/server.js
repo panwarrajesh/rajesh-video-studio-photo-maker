@@ -42,6 +42,47 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Mobile apps / server-to-server requests
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Known origins
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Any Vercel deployment
+      if (origin.endsWith('.vercel.app')) {
+        console.log('Allowing Vercel origin:', origin);
+        return callback(null, true);
+      }
+
+      console.log('CORS blocked:', origin);
+      return callback(null, false);
+    },
+
+    credentials: true,
+
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'PATCH',
+      'DELETE',
+      'OPTIONS',
+    ],
+
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+    ],
+  })
+);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
       if (!origin) {
         return callback(null, true);
       }

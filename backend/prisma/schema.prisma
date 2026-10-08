@@ -97,16 +97,16 @@ model TimelineTrack {
 }
 
 model TimelineClip {
-  id          String        @id
+  id          String         @id
   trackId     String
-  track       TimelineTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  track       TimelineTrack  @relation(fields: [trackId], references: [id], onDelete: Cascade)
   mediaId     String?
-  media       ProjectMedia? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  media       ProjectMedia?  @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   start       Float
   duration    Float
-  trimIn      Float         @default(0)
-  speed       Float         @default(1)
-  srcLen      Float         @default(3600)
+  trimIn      Float          @default(0)
+  speed       Float          @default(1)
+  srcLen      Float          @default(3600)
   kind        String?
   props       Json
   keyframes   Json?

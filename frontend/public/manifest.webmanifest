@@ -1,24 +1,2 @@
-{
-  "id": "/",
-  "name": "Rajesh Video Studio",
-  "short_name": "RVS",
-  "description": "Make cinematic videos from your photos and clips, right on your phone.",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
-  "orientation": "any",
-  "background_color": "#0b0e14",
-  "theme_color": "#0b0e14",
-  "lang": "en",
-  "categories": ["multimedia", "photo", "video"],
-  "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ],
-  "shortcuts": [
-    { "name": "Photo Video Maker", "short_name": "Photo Maker", "url": "/studio", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
-  ]
-}
+{"name":"Rajesh Video Studio","short_name":"RVS","start_url":"/","display":"standalone","orientation":"any","background_color":"#0b0e14","theme_color":"#0b0e14",
+"icons":[{"src":"/icon-192.png","sizes":"192x192","type":"image/png"},{"src":"/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"}]}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api, upload, fileUrl } from '../services/api.js';
 import { useEditor, totalDuration, TEXT_DEFAULTS, evalProp, evalProps, kfTimes, DEFAULT_TRACKS } from '../store/editor.js';
 import { useShortcuts } from '../hooks/useShortcuts.js';
@@ -238,7 +238,6 @@ function Timeline({ onAdd }) {
             {(t === 'VIDEO' || t === 'AUDIO') && <button title={tk[t].muted ? 'Unmute' : 'Mute'} className={tk[t].muted ? 'on' : ''} onClick={() => toggleTrack(t, 'muted')}><Icon name={tk[t].muted ? 'volumeoff' : 'volume'} size={13} /></button>}
           </div>
           <div className="lane" style={{ width }} onClick={(e) => { if (e.target === e.currentTarget) select(null); }}>
-            {mobile && t === 'VIDEO' && <button className="plusbtn" title="Add media" style={{ left: Math.max(0, ...clips.filter((c) => c.track === 'VIDEO').map((c) => c.start + c.duration)) * zoom + 8 }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onAdd('media'); }}><Icon name="plus" size={20} /></button>}
             {clips.filter((c) => c.track === t).map((c) => (
               <div key={c.id} className={`clip ${t} ${selected === c.id ? 'sel' : ''}`} style={{ left: c.start * zoom, width: c.duration * zoom }} onPointerDown={(e) => drag(e, c)} onClick={(e) => { e.stopPropagation(); select(c.id); }}>
                 <i className="h l" onPointerDown={(e) => trim(e, c, 'L')} />{(c.track === 'IMAGE' || c.track === 'VIDEO') && <Thumb c={c} media={media} />}{kfTimes(c).map((kt) => <b key={kt} className="kfd" style={{ left: kt * zoom - 4 }} />)}{c.track === 'AUDIO' && <Wave c={c} media={media} />}{c.kind === 'text' ? c.props.text : c.kind === 'sticker' ? c.props.shape : c.kind === 'effect' ? EFFECTS[c.props.effect]?.label : media.find((m) => m.id === c.mediaId)?.name}<i className="h r" onPointerDown={(e) => trim(e, c, 'R')} /></div>))}
@@ -342,11 +341,10 @@ function Props() {
 
 export default function Editor() {
   const { id } = useParams();
-  const loc = useLocation(), navigate = useNavigate(), addRef = useRef(new URLSearchParams(loc.search).get('add'));
   const [p, setP] = useState(null); const [err, setErr] = useState(''); const [note, setNote] = useState(''); const [showExport, setShowExport] = useState(false);
   const [tab, setTab] = useState('media'); const [sheet, setSheet] = useState(null);
   const [ready, setReady] = useState(false); const [recover, setRecover] = useState(null);
-  const { playing, playhead, clips, zoom, selected, setPlaying, seek, setZoom, removeClip, setMedia, splitClip, past, future, undo, redo, duplicate, addMarker, updateProps } = useEditor();
+  const { playing, playhead, clips, zoom, selected, setPlaying, seek, setZoom, removeClip, setMedia, splitClip, past, future, undo, redo, duplicate, addMarker } = useEditor();
 
   useEffect(() => {
     useEditor.setState({ clips: [], past: [], future: [], tracks: DEFAULT_TRACKS(), markers: [], playhead: 0, playing: false, selected: null });
@@ -376,12 +374,6 @@ export default function Editor() {
   }, [playing, seek, setPlaying]);
 
   const { status, saveNow } = useAutosave(id, ready);
-  useEffect(() => { // coming from "New video": put the picked media on the timeline (after autosave has its baseline, so it gets saved)
-    if (!ready || !addRef.current) return;
-    const st = useEditor.getState();
-    addRef.current.split(',').forEach((mid) => { const m = st.media.find((x) => x.id === mid); if (m) useEditor.getState().addClip(m); });
-    useEditor.setState({ selected: null }); addRef.current = null; navigate(loc.pathname, { replace: true });
-  }, [ready]); // eslint-disable-line
   const step = (n) => () => { const st = useEditor.getState(); st.seek(st.playhead + n / (p?.fps || 30)); };
   useShortcuts({
     left: step(-1), right: step(1), 'shift+left': step(-(p?.fps || 30)), 'shift+right': step(p?.fps || 30),
@@ -390,7 +382,7 @@ export default function Editor() {
 
   if (err && !p) return <div className="center"><p className="err">{err}</p><Link to="/">Back</Link></div>;
   if (!p) return <div className="center">Loading…</div>;
-  const dur = totalDuration(clips); const selClip = clips.find((c) => c.id === selected);
+  const dur = totalDuration(clips);
   return (
     <div className="editor">
       <header className="top etop">
@@ -431,19 +423,12 @@ export default function Editor() {
       {showExport && <ExportDialog project={p} onClose={() => setShowExport(false)} />}
       {sheet && <div className="backdrop" onClick={() => setSheet(null)} />}
       <nav className="nav">
-        {selClip ? <>
-          <button title="Back" onClick={() => useEditor.getState().select(null)}><Icon name="back" size={21} /><span>Back</span></button>
-          <i className="navsep" />
-          <button title="Split at playhead" onClick={splitClip}><Icon name="scissors" size={21} /><span>Split</span></button>
-          <button title="Edit" className={sheet === 'props' ? 'on' : ''} onClick={() => setSheet(sheet === 'props' ? null : 'props')}><Icon name="sliders" size={21} /><span>Edit</span></button>
-          {(selClip.track === 'VIDEO' || selClip.track === 'AUDIO') && <button title="Mute clip" className={selClip.props.muted ? 'on' : ''} onClick={() => updateProps(selClip.id, { muted: !selClip.props.muted })}><Icon name={selClip.props.muted ? 'volumeoff' : 'volume'} size={21} /><span>{selClip.props.muted ? 'Unmute' : 'Mute'}</span></button>}
-          <button title="Duplicate clip" onClick={duplicate}><Icon name="copy" size={21} /><span>Duplicate</span></button>
-          <button title="Delete clip" className="danger" onClick={() => removeClip(selClip.id)}><Icon name="trash" size={21} /><span>Delete</span></button>
-        </> : <>
-          {TABS.map(([k, ic, l]) => <button key={k} className={sheet === 'left' && tab === k ? 'on' : ''} onClick={() => { setTab(k); setSheet(sheet === 'left' && tab === k ? null : 'left'); }}><Icon name={ic} size={21} /><span>{l}</span></button>)}
-          <i className="navsep" />
-          <button title="Split at playhead" onClick={splitClip}><Icon name="scissors" size={21} /><span>Split</span></button>
-        </>}
+        {TABS.map(([k, ic, l]) => <button key={k} className={sheet === 'left' && tab === k ? 'on' : ''} onClick={() => { setTab(k); setSheet(sheet === 'left' && tab === k ? null : 'left'); }}><Icon name={ic} size={21} /><span>{l}</span></button>)}
+        <i className="navsep" />
+        <button title="Split at playhead" onClick={splitClip}><Icon name="scissors" size={21} /><span>Split</span></button>
+        <button title="Duplicate clip" disabled={!selected} onClick={duplicate}><Icon name="copy" size={21} /><span>Duplicate</span></button>
+        <button title="Delete clip" className="danger" disabled={!selected} onClick={() => selected && removeClip(selected)}><Icon name="trash" size={21} /><span>Delete</span></button>
+        <button className={`${sheet === 'props' ? 'on' : ''} ${selected ? 'dot' : ''}`} onClick={() => setSheet(sheet === 'props' ? null : 'props')}><Icon name="sliders" size={21} /><span>Edit</span></button>
       </nav>
     </div>
   );

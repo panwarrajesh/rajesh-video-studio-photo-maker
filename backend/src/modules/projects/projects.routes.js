@@ -30,7 +30,7 @@ r.get('/:id', async (req, res) => {
   pr ? res.json(pr) : res.status(404).json({ error: 'Project not found' });
 });
 r.put('/:id', async (req, res) => {
-  const p = z.object({ name: z.string().min(1).max(80).optional(), fps: z.number().int().optional(), thumbnailUrl: z.string().max(80000).regex(/^data:image\/jpeg;base64,/).optional() }).safeParse(req.body);
+  const p = z.object({ name: z.string().min(1).max(80).optional(), fps: z.number().int().optional() }).safeParse(req.body);
   if (!p.success || !(await mine(req))) return res.status(404).json({ error: 'Not found or invalid' });
   res.json(await prisma.project.update({ where: { id: req.params.id }, data: p.data }));
 });

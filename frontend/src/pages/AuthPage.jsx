@@ -9,8 +9,7 @@ export default function AuthPage({ mode }) {
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const submit = useAuth((s) => s.submit); const nav = useNavigate();
   const reg = mode === 'register';
-  const native = isNative(), baked = !!import.meta.env.VITE_API_URL; // baked = server address already built into the app
-  const [server, setSrv] = useState(getServer());
+  const native = isNative(), baked = !!import.meta.env.VITE_API_URL; // baked = server address already built into this app const [server, setSrv] = useState(getServer());
   const on = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   async function go(e) {
     e.preventDefault(); setErr(''); setBusy(true);

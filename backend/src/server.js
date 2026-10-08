@@ -11,9 +11,10 @@ import exportRoutes from './modules/exports/exports.routes.js';
 
 const app = express();
 
-// ===============================
-// Security
-// ===============================
+// ======================================================
+// SECURITY
+// ======================================================
+
 app.use(
   helmet({
     crossOriginResourcePolicy: {
@@ -22,17 +23,24 @@ app.use(
   })
 );
 
-// ===============================
+// ======================================================
 // CORS
-// ===============================
+// ======================================================
+
 const allowedOrigins = [
+  // Production Vercel
   'https://rajesh-video-studio-photo-maker.vercel.app',
+
+  // Local development
   'http://localhost:5173',
   'http://localhost:3000',
+
+  // Capacitor / Android
   'http://localhost',
   'https://localhost',
   'capacitor://localhost',
 
+  // Optional custom client URLs from Render environment
   ...(process.env.CLIENT_URL || '')
     .split(',')
     .map((s) => s.trim())
@@ -42,107 +50,36 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Mobile apps / server-to-server requests
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      // Known origins
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Any Vercel deployment
-      if (origin.endsWith('.vercel.app')) {
-        console.log('Allowing Vercel origin:', origin);
-        return callback(null, true);
-      }
-
-      console.log('CORS blocked:', origin);
-      return callback(null, false);
-    },
-
-    credentials: true,
-
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'PATCH',
-      'DELETE',
-      'OPTIONS',
-    ],
-
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-    ],
-  })
-);
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Vercel preview deployment
-      if (
-        /^https:\/\/rajesh-video-studio-photo-maker-[a-z0-9-]+\.vercel\.app$/i.test(
-          origin
-        )
-      ) {
-        return callback(null, true);
-      }
-
-      console.log('CORS blocked:', origin);
-      return callback(null, false);
-    },
-
-    credentials: true,
-
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'PATCH',
-      'DELETE',
-      'OPTIONS',
-    ],
-
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-    ],
-  })
-);
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Postman / server-to-server requests
+      // Requests without Origin
+      // Example: Postman / server-to-server requests
       if (!origin) {
         return callback(null, true);
       }
 
       // Exact allowed origins
       if (allowedOrigins.includes(origin)) {
+        console.log('CORS allowed:', origin);
         return callback(null, true);
       }
 
-      // Vercel preview deployments
-      if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) {
+      // Allow Vercel preview deployments
+      if (
+        origin.startsWith(
+          'https://rajesh-video-studio-photo-maker-'
+        ) &&
+        origin.endsWith('.vercel.app')
+      ) {
+        console.log('CORS allowed Vercel preview:', origin);
         return callback(null, true);
       }
 
+      // Block unknown origins
       console.log('CORS blocked:', origin);
 
-      // Don't throw an error here
+      // IMPORTANT:
+      // Do not throw an Error here.
+      // Returning false prevents the request from being
+      // accepted without crashing the CORS middleware.
       return callback(null, false);
     },
 
@@ -164,57 +101,36 @@ app.use(
   })
 );
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Postman / server-to-server requests
-      if (!origin) {
-        return callback(null, true);
-      }
+// ======================================================
+// HEALTH CHECK
+// ======================================================
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      console.log('CORS blocked:', origin);
-      return callback(new Error('Not allowed by CORS'));
-    },
-
-    credentials: true,
-
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-    ],
-  })
-);
-
-// ===============================
-// Health Check
-// ===============================
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+  });
 });
 
-// ===============================
-// Body Parser
-// ===============================
+// ======================================================
+// BODY PARSER
+// ======================================================
+
 app.use(
   express.json({
     limit: '5mb',
   })
 );
 
-// ===============================
-// Uploads
-// ===============================
+// ======================================================
+// UPLOADS
+// ======================================================
+
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// ===============================
-// Auth
-// ===============================
+// ======================================================
+// AUTH ROUTES
+// ======================================================
+
 app.use(
   '/api/auth',
   rateLimit({
@@ -224,24 +140,39 @@ app.use(
   authRoutes
 );
 
-// ===============================
-// Projects
-// ===============================
+// ======================================================
+// PROJECT ROUTES
+// ======================================================
+
 app.use('/api/projects', projectRoutes);
 
-// ===============================
-// Media
-// ===============================
+// ======================================================
+// MEDIA ROUTES
+// ======================================================
+
 app.use('/api/media', mediaRoutes);
 
-// ===============================
-// Exports
-// ===============================
+// ======================================================
+// EXPORT ROUTES
+// ======================================================
+
 app.use('/api', exportRoutes);
 
-// ===============================
-// Error Handler
-// ===============================
+// ======================================================
+// 404 HANDLER
+// ======================================================
+
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Route not found',
+    path: req.originalUrl,
+  });
+});
+
+// ======================================================
+// ERROR HANDLER
+// ======================================================
+
 app.use((err, _req, res, _next) => {
   console.error('SERVER ERROR:', err);
 
@@ -250,9 +181,10 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-// ===============================
-// Start Server
-// ===============================
+// ======================================================
+// START SERVER
+// ======================================================
+
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {

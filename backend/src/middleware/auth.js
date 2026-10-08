@@ -1,0 +1,7 @@
+import jwt from 'jsonwebtoken';
+export const requireAuth = (req, res, next) => {
+  try {
+    req.user = jwt.verify((req.headers.authorization || '').replace('Bearer ', ''), process.env.JWT_SECRET);
+    next();
+  } catch { res.status(401).json({ error: 'Unauthorized' }); }
+};

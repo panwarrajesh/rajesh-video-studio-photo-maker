@@ -1,0 +1,7 @@
+{
+  "appId": "com.rajesh.videostudio",
+  "appName": "Rajesh Video Studio",
+  "webDir": "dist",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true }
+}

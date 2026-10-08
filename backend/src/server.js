@@ -42,6 +42,48 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Vercel preview deployment
+      if (
+        /^https:\/\/rajesh-video-studio-photo-maker-[a-z0-9-]+\.vercel\.app$/i.test(
+          origin
+        )
+      ) {
+        return callback(null, true);
+      }
+
+      console.log('CORS blocked:', origin);
+      return callback(null, false);
+    },
+
+    credentials: true,
+
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'PATCH',
+      'DELETE',
+      'OPTIONS',
+    ],
+
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+    ],
+  })
+);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
       // Postman / server-to-server requests
       if (!origin) {
         return callback(null, true);

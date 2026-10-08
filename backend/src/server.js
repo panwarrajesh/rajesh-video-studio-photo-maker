@@ -29,7 +29,57 @@ const allowedOrigins = [
   'https://rajesh-video-studio-photo-maker.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost',
+
+  ...(process.env.CLIENT_URL || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 ];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Postman / server-to-server requests
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Exact allowed origins
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Vercel preview deployments
+      if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) {
+        return callback(null, true);
+      }
+
+      console.log('CORS blocked:', origin);
+
+      // Don't throw an error here
+      return callback(null, false);
+    },
+
+    credentials: true,
+
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'PATCH',
+      'DELETE',
+      'OPTIONS',
+    ],
+
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+    ],
+  })
+);
 
 app.use(
   cors({

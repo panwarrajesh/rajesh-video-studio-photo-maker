@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Rajesh Video Studio",
+    "slug": "rajesh-video-studio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0e14"
+    },
+    "android": {
+      "package": "com.rajesh.videostudio",
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#0b0e14"
+      },
+      "permissions": [
+        "INTERNET"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.rajesh.videostudio",
+      "supportsTablet": true
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Rajesh Video Studio to pick photos and videos for your projects."
+        }
+      ],
+      "expo-video",
+      "expo-audio"
+    ]
+  }
+}

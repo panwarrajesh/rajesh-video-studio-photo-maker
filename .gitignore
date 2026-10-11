@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.expo/
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env.production
+mobile/.env
+backend/uploads/
+*.keystore
+*.jks
+android/
+
+mobile/.git-backup/

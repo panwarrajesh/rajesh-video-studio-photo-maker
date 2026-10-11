@@ -11,3 +11,6 @@ android/
 frontend/android/app/build/
 frontend/android/app/src/main/assets/
 frontend/android/capacitor-cordova-android-plugins/
+
+mobile/.expo/
+mobile/.git-backup/

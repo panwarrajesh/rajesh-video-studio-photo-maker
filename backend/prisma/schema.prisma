@@ -43,6 +43,7 @@ model User {
   createdAt    DateTime       @default(now())
   projects     Project[]
   media        ProjectMedia[]
+  refreshTokens RefreshToken[]
 }
 
 model Project {
@@ -176,4 +177,18 @@ model ExportJob {
   createdAt DateTime  @default(now())
 
   @@index([projectId])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  revokeReason String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

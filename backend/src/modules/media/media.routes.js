@@ -3,6 +3,7 @@ import multer from 'multer';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs/promises';
+import { probeDuration } from '../../utils/probe.js';
 import { prisma } from '../../utils/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -36,10 +37,11 @@ r.post('/upload', (req, res) => upload.single('file')(req, res, async (err) => {
     await fs.unlink(req.file.path).catch(() => {});
     return res.status(404).json({ error: 'Project not found' });
   }
+  const probed = req.file.mimetype.startsWith('image/') ? null : await probeDuration(req.file.path);
   let url;
   try { url = await saveFile(req.file.path, `media/${req.file.filename}`, req.file.mimetype); }
   catch { await fs.unlink(req.file.path).catch(() => {}); return res.status(502).json({ error: 'Storage failure. Please try again.' }); }
-  const d = Number(req.body.duration);
+  const d = probed ?? Number(req.body.duration); // measured on the server; the client value is only a fallback
   res.status(201).json(await prisma.projectMedia.create({ data: {
     userId: req.user.id, projectId: projectId || null, name: req.file.originalname.slice(0, 120),
     type: ALLOWED[req.file.mimetype][1], url, size: req.file.size,

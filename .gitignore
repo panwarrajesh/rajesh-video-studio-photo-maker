@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.expo/
+.env
+.env.*
+!.env.example
+backend/uploads/
+*.keystore
+*.jks
+
+mobile/.git-backup/

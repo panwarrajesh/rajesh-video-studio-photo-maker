@@ -125,3 +125,29 @@ B) ASLI APK FILE (Android Studio ki zaroorat nahi)
    4. Address bar chhupane ke liye: zip me "assetlinks.json" aur SHA-256 milega. frontend/assetlinks.template.json ka content ye SHA daalkar
       frontend/public/.well-known/assetlinks.json naam se rakho, phir Vercel Redeploy karo.
    Ye APK Chrome engine par chalta hai, isliye Photo Video Maker ka export, mic (voice-over) aur download sab Chrome jaise hi chalte hain.
+
+## v12: MOBILE APP (React Native), SAFE LOGIN, RESIZABLE PANELS
+- `mobile/` = Expo + React Native app (see mobile/README.md: run with Expo Go, build APK with EAS).
+- `shared/` = timeline engine + API client used by the mobile app (pure JS, tested).
+
+### Backend: ZAROORI (naya table)
+    cd backend && npm i && npx prisma db push      # adds the RefreshToken table
+    npm test                                         # 24 tests incl. a real FFmpeg export of every effect
+Purane logged-in users ko ek baar dobara login karna padega (naye secure refresh tokens).
+Refresh tokens ab DB me hashed rakhe jaate hain, har use par badalte hain, logout par revoke hote hain, purana token dobara aaye to us user ke saare sessions band ho jaate hain.
+Server ab media ka duration ffprobe se khud nikalta hai (client par bharosa nahi).
+Export ab Blur, Motion Blur, Vignette, Noise, RGB Shift, Glitch, Light Leak, Flash, Fade, Pixelate, Glow bhi render karta hai.
+
+### Web: login session
+- Default: refresh token localStorage me (pehle jaisa, kuch nahi toota).
+- Zyada secure: backend env `COOKIE_AUTH=true` + web build env `VITE_COOKIE_AUTH=true` -> refresh token HttpOnly cookie me, access token sirf memory me.
+  Iske liye API aur website same site par honi chahiye (api.example.com + app.example.com), warna browsers cookie block karte hain.
+
+### Web: desktop editor
+Left panel, right panel aur timeline ke beech ke dividers ko drag karke size badlo (double-click = reset). Size yaad rehta hai.
+
+### v14: resumable uploads + "app nahi chal raha" diagnostics
+- Bade video ab chunks me upload hote hain (`POST /api/media/uploads`, `PATCH .../:id`, `POST .../:id/complete`): internet toote to wahin se aage badhta hai. Server file ke asli bytes dekhkar type check karta hai aur duration ffprobe se khud nikalta hai. Purana `POST /api/media/upload` website ke liye waise hi chalta hai.
+- `GET /api/health/deep` batata hai: database, RefreshToken table, FFmpeg, JWT secret (sirf yes/no, koi secret nahi).
+- Async route me error aane par ab poora server crash nahi hota (express-async-errors). Backend par `npm install` zaroor.
+- Phone app me "Connection check" screen aur crash screen (report WhatsApp par share ho sakti hai).

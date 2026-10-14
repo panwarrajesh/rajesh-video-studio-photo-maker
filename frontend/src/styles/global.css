@@ -214,3 +214,12 @@ html{touch-action:manipulation}
   .editor{grid-template-rows:calc(52px + env(safe-area-inset-top)) minmax(0,1fr) 268px calc(64px + env(safe-area-inset-bottom))}
   .mini{bottom:calc(64px + env(safe-area-inset-bottom) + 6px);margin:0 8px;max-width:none}.timeline{background:#161618}.canvaswrap{background:#000}
 }
+/* ===== v12 desktop: resizable panels ===== */
+.split{display:none}
+@media(min-width:901px){
+  .editor{grid-template-columns:var(--lw,320px) minmax(0,1fr) var(--rw,300px);grid-template-rows:56px minmax(0,1fr) var(--th,250px);position:relative}
+  .split{display:block;position:absolute;z-index:20;touch-action:none;transition:background .15s}
+  .split.v{top:56px;bottom:var(--th,250px);width:9px;margin-left:-4px;cursor:col-resize}.split.l{left:var(--lw,320px)}.split.r{left:calc(100% - var(--rw,300px))}
+  .split.h{left:0;right:0;height:9px;bottom:var(--th,250px);margin-bottom:-4px;cursor:row-resize}
+  .split:hover,.split:active{background:#6b7cff66}
+}

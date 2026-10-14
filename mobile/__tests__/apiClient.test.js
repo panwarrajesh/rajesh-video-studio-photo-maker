@@ -1,4 +1,4 @@
-import { createApiClient, jwtExp } from '../../shared/apiClient.js';
+import { createApiClient, jwtExp } from '../src/shared/apiClient.js';
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (expSec) => `${b64({ alg: 'HS256' })}.${b64({ id: 'u1', exp: expSec })}.sig`;

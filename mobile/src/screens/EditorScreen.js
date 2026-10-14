@@ -5,7 +5,7 @@ import Slider from '@react-native-community/slider';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useEditor } from '../state/editor';
-import * as T from '../../../shared/timeline.js';
+import * as T from '../shared/timeline.js';
 import { api } from '../services/api';
 import { uploadMedia } from '../services/upload';
 import { exportPayload, startExport, getExport, downloadAndShare } from '../services/exportJob';

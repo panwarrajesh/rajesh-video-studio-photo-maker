@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import 'express-async-errors'; // an error inside an async route becomes a clean 500 answer instead of crashing the whole server
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -8,6 +9,7 @@ import authRoutes from './modules/auth/auth.routes.js';
 import projectRoutes from './modules/projects/projects.routes.js';
 import mediaRoutes, { UPLOAD_DIR } from './modules/media/media.routes.js';
 import exportRoutes from './modules/exports/exports.routes.js';
+import healthDeep from './modules/health/index.js';
 
 const app = express();
 
@@ -43,6 +45,7 @@ app.use(
 );
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.use('/api/health', rateLimit({ windowMs: 60 * 1000, max: 30 }), healthDeep);
 app.use(express.json({ limit: '5mb' }));
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }), authRoutes);

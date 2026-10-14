@@ -204,6 +204,19 @@ function Thumb({ c, media }) {
 }
 const ALL_TRACKS = ['VIDEO', 'IMAGE', 'AUDIO', 'TEXT', 'OVERLAY', 'EFFECTS'];
 
+const PANEL_DEFAULT = { lw: 320, rw: 300, th: 250 }, PANEL_LIMIT = { lw: [220, 520], rw: [240, 520], th: [160, 520] };
+function usePanels() { // resizable side panels + timeline height (desktop), remembered between visits
+  const [p, setP] = useState(() => { try { return { ...PANEL_DEFAULT, ...JSON.parse(localStorage.getItem('rvs_panels')) }; } catch { return PANEL_DEFAULT; } });
+  useEffect(() => { try { localStorage.setItem('rvs_panels', JSON.stringify(p)); } catch { /* storage blocked */ } }, [p]);
+  const drag = (key, dir) => (e) => {
+    e.preventDefault(); const x0 = e.clientX, y0 = e.clientY, v0 = p[key], [lo, hi] = PANEL_LIMIT[key];
+    const mv = (ev) => { const d = key === 'th' ? y0 - ev.clientY : dir * (ev.clientX - x0); setP((q) => ({ ...q, [key]: Math.min(hi, Math.max(lo, v0 + d)) })); };
+    const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  };
+  return { p, drag, reset: (key) => () => setP((q) => ({ ...q, [key]: PANEL_DEFAULT[key] })) };
+}
+
 function Timeline({ onAdd }) {
   const { clips, media, playhead, zoom, selected, seek, select, moveClip, trimLeft, trimRight, tracks: tk, toggleTrack, markers, removeMarker, snapStart, snapPoint } = useEditor();
   const width = Math.max(totalDuration(clips) + 10, 30) * zoom;
@@ -347,7 +360,7 @@ export default function Editor() {
   const { id } = useParams();
   const loc = useLocation(), navigate = useNavigate(), addRef = useRef(new URLSearchParams(loc.search).get('add'));
   const [p, setP] = useState(null); const [err, setErr] = useState(''); const [note, setNote] = useState(''); const [showExport, setShowExport] = useState(false);
-  const [tab, setTab] = useState('media'); const [mini, setMini] = useState(null); const wrapRef = useRef(); const mobile = useMobile(); const [sheet, setSheet] = useState(null);
+  const panels = usePanels(); const [tab, setTab] = useState('media'); const [mini, setMini] = useState(null); const wrapRef = useRef(); const mobile = useMobile(); const [sheet, setSheet] = useState(null);
   const [ready, setReady] = useState(false); const [recover, setRecover] = useState(null);
   const { playing, playhead, clips, zoom, selected, setPlaying, seek, setZoom, removeClip, setMedia, splitClip, past, future, undo, redo, duplicate, addMarker, updateProps } = useEditor();
 
@@ -399,7 +412,10 @@ export default function Editor() {
   if (!p) return <div className="center">Loading…</div>;
   const dur = totalDuration(clips); const selClip = clips.find((c) => c.id === selected);
   return (
-    <div className="editor">
+    <div className="editor" style={{ '--lw': `${panels.p.lw}px`, '--rw': `${panels.p.rw}px`, '--th': `${panels.p.th}px` }}>
+      <i className="split v l" title="Drag to resize (double-click to reset)" onPointerDown={panels.drag('lw', 1)} onDoubleClick={panels.reset('lw')} />
+      <i className="split v r" title="Drag to resize (double-click to reset)" onPointerDown={panels.drag('rw', -1)} onDoubleClick={panels.reset('rw')} />
+      <i className="split h" title="Drag to resize (double-click to reset)" onPointerDown={panels.drag('th', 1)} onDoubleClick={panels.reset('th')} />
       <header className="top etop">
         <Link className="ib" to="/" title="Back to projects"><Icon name="back" /></Link>
         <span className="brandmark"><Logo /></span><b className="pname">{p.name}</b>

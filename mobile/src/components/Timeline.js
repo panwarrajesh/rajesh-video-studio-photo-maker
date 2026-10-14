@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Animated, PanResponder, Image, Vibration } from 'react-native';
 import { useEditor } from '../state/editor';
-import * as T from '../../../shared/timeline.js';
+import * as T from '../shared/timeline.js';
 import { mediaUrl } from '../config';
+import { filmstrip, frameIndex } from '../services/thumbs';
 import { c, TRACK_COLOR } from '../theme';
 
 export const TL_HEIGHT = 250;
+
+// real frames of the video drawn along the clip (like a film strip); falls back to the plain coloured bar while loading
+function Strip({ clip, media, h, width }) {
+  const url = media ? mediaUrl(media.url) : null, dur = media?.duration || clip.srcLen || 1, [frames, setFrames] = useState(null);
+  useEffect(() => { let live = true; if (url) filmstrip(url, dur).then((f) => live && setFrames(f)); return () => { live = false; }; }, [url, dur]);
+  if (!frames) return null;
+  const tw = Math.max(h, width / 60), n = Math.max(1, Math.ceil(width / tw));
+  return <View style={{ position: 'absolute', left: 0, top: 0, flexDirection: 'row', opacity: 0.85 }}>{Array.from({ length: n }, (_, i) => {
+    const uri = frames[frameIndex(clip.trimIn + (((i + 0.5) * tw) / width) * clip.duration * clip.speed, dur, frames.length)];
+    return uri ? <Image key={i} source={{ uri }} resizeMode="cover" style={{ width: tw, height: h }} /> : <View key={i} style={{ width: tw, height: h }} />;
+  })}</View>;
+}
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const mmss = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
@@ -89,6 +102,7 @@ export default function Timeline({ onAction }) {
                 const sel = selected === k.id, m = media.find((x) => x.id === k.mediaId), width = Math.max(4, k.duration * zoom);
                 return (
                   <View key={k.id} style={{ position: 'absolute', left: k.start * zoom, top: r.top, width, height: r.h, borderRadius: 8, overflow: 'hidden', backgroundColor: TRACK_COLOR[k.track], borderWidth: sel ? 2 : 0, borderColor: '#fff', opacity: tracks[k.track]?.hidden ? 0.35 : 1 }}>
+                    {k.track === 'VIDEO' && <Strip clip={k} media={m} h={r.h} width={width} />}
                     {k.track === 'IMAGE' && m && <Image source={{ uri: mediaUrl(m.url) }} resizeMode="cover" style={{ position: 'absolute', width, height: r.h, opacity: 0.7 }} />}
                     <Text numberOfLines={1} style={{ color: '#fff', fontWeight: '700', fontSize: 12, margin: 8, marginLeft: 12, textShadowColor: '#0009', textShadowRadius: 3 }}>{labelOf(k)}{k.speed !== 1 ? `  ${k.speed}x` : ''}</Text>
                     {sel && <><View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 14, backgroundColor: '#fff' }} /><View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 14, backgroundColor: '#fff' }} /></>}

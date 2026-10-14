@@ -1,16 +1,11 @@
 node_modules/
 dist/
+.expo/
 .env
 .env.*
 !.env.example
+backend/uploads/
+*.keystore
+*.jks
 
-backend/.env
-frontend/.env.production
-
-android/
-frontend/android/app/build/
-frontend/android/app/src/main/assets/
-frontend/android/capacitor-cordova-android-plugins/
-
-mobile/.expo/
 mobile/.git-backup/

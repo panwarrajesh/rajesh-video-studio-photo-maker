@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs/promises';
 import { probeDuration } from '../../utils/probe.js';
+import { createUploadRouter } from './upload.routes.js';
+import { createChunkStore } from './chunked.service.js';
 import { prisma } from '../../utils/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -23,6 +25,15 @@ const upload = multer({
 
 const r = Router();
 r.use(requireAuth);
+
+// Resumable chunked uploads (used by the phone app for big videos). The one-shot POST /upload below keeps working for the website.
+const chunkStore = createChunkStore(path.join(UPLOAD_DIR, 'tmp'));
+setInterval(() => chunkStore.sweep().catch(() => {}), 3600 * 1000).unref();
+r.use('/uploads', createUploadRouter({
+  store: chunkStore, uploadDir: UPLOAD_DIR, saveFile, probeDuration,
+  ownsProject: (userId, id) => prisma.project.findFirst({ where: { id, userId } }),
+  createMedia: (data) => prisma.projectMedia.create({ data }),
+}));
 
 r.get('/', async (req, res) => {
   const where = { userId: req.user.id };

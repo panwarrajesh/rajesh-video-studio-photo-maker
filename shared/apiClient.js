@@ -1,6 +1,6 @@
 // API client with persistent login. No React, no Expo imports: storage and fetch are injected, so it is unit-tested and reusable on web.
 export class ApiError extends Error {
-  constructor(message, status = 0, network = false) { super(message); this.status = status; this.network = network; }
+  constructor(message, status = 0, network = false, data = null) { super(message); this.status = status; this.network = network; this.data = data; }
 }
 const K = { access: 'rvs_access', refresh: 'rvs_refresh', user: 'rvs_user' };
 
@@ -36,20 +36,20 @@ export function createApiClient({ baseUrl, storage, fetchImpl = (...a) => global
     return refreshing;
   }
 
-  async function request(path, { method = 'GET', body, headers = {}, auth = true, retry = true } = {}) {
+  async function request(path, { method = 'GET', body, headers = {}, auth = true, retry = true, raw = false } = {}) { // raw: send the body as it is (binary chunks)
     if (auth) { const a = await storage.get(K.access); if (a && expiring(a, now)) await refresh(); }
     const token = auth ? await storage.get(K.access) : null;
     let res;
     try {
-      res = await fetchImpl(url(path), { method, headers: { 'Content-Type': 'application/json', 'X-Client': clientName, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
+      res = await fetchImpl(url(path), { method, headers: { ...(raw ? {} : { 'Content-Type': 'application/json' }), 'X-Client': clientName, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers }, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) });
     } catch { throw new ApiError('Network error. Check your internet connection.', 0, true); }
     if (res.status === 401 && auth && retry) {
       const r = await refresh();
-      if (r === 'ok') return request(path, { method, body, headers, auth, retry: false });
+      if (r === 'ok') return request(path, { method, body, headers, auth, retry: false, raw });
       if (r === 'network') throw new ApiError('Network error. Check your internet connection.', 0, true);
     }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new ApiError(data.error || `Request failed (${res.status})`, res.status);
+    if (!res.ok) throw new ApiError(data.error || `Request failed (${res.status})`, res.status, false, data);
     return data;
   }
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import * as T from '../../../shared/timeline.js';
-import { createHistory } from '../../../shared/history.js';
+import * as T from '../shared/timeline.js';
+import { createHistory } from '../shared/history.js';
 
 const hist = createHistory(100);
 const mainAt = (s) => T.clipAt(s.clips, 'VIDEO', s.playhead, s.tracks) || T.clipAt(s.clips, 'IMAGE', s.playhead, s.tracks);

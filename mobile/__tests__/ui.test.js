@@ -15,7 +15,7 @@ import Timeline, { actionAt } from '../src/components/Timeline';
 import { useAuth } from '../src/state/auth';
 import { useEditor } from '../src/state/editor';
 import { api } from '../src/services/api';
-import * as T from '../../shared/timeline.js';
+import * as T from '../src/shared/timeline.js';
 
 test('login screen: wrong password shows the message, correct login calls the store', async () => {
   const login = jest.fn().mockRejectedValueOnce(new Error('Wrong email or password')).mockResolvedValueOnce(undefined); useAuth.setState({ login });
@@ -46,4 +46,11 @@ test('editor screen: loads project + media, fixed toolbar, Text sheet adds a rea
   fireEvent.press(screen.getByText('Done')); fireEvent.press(screen.getByText('Export')); fireEvent.press(await screen.findByText('Start export'));
   await waitFor(() => expect(calls.some((c) => c === 'POST /projects/p1/export')).toBe(true));
   expect(await screen.findByText(/Rendering… 40%/)).toBeTruthy();
+});
+
+jest.mock('../src/services/thumbs', () => ({ filmstrip: jest.fn(async () => ['file://f1.jpg', 'file://f2.jpg']), frameIndex: (t, d, n) => Math.min(n - 1, Math.floor((t / d) * n)), projectThumb: jest.fn() }));
+test('timeline draws film-strip frames on a video clip once they are loaded', async () => {
+  useEditor.getState().load({ id: 'p1', name: 'P', width: 1080, height: 1920, markers: [], tracks: [{ type: 'VIDEO', clips: [{ id: 'p1_a', mediaId: 'm1', start: 0, duration: 3, trimIn: 0, speed: 1, srcLen: 3, props: {}, keyframes: {} }] }] }, [{ id: 'm1', type: 'VIDEO', name: 'clip.mp4', url: '/u/a.mp4', duration: 3 }]);
+  const { UNSAFE_getAllByType } = render(<Timeline onAction={() => {}} />); const { Image } = require('react-native');
+  await waitFor(() => expect(UNSAFE_getAllByType(Image).some((i) => i.props.source?.uri === 'file://f1.jpg')).toBe(true));
 });

@@ -1,5 +1,5 @@
-import * as T from '../../shared/timeline.js';
-import { createHistory } from '../../shared/history.js';
+import * as T from '../src/shared/timeline.js';
+import { createHistory } from '../src/shared/history.js';
 
 const tracks = T.DEFAULT_TRACKS();
 const media = (id, type, d) => ({ id, type, duration: d });

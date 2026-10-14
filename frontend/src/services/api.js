@@ -2,6 +2,20 @@
 export const isNative = () => !!window.Capacitor?.isNativePlatform?.();
 export const getServer = () => localStorage.getItem('rvs_server') || '';
 
+// VITE_COOKIE_AUTH=true: the refresh token lives in an HttpOnly cookie (JavaScript can never read it) and the access token only in memory.
+// Needs the API and the site on the same site (e.g. api.example.com + app.example.com) so browsers do not block the cookie. Backend: COOKIE_AUTH=true.
+export const COOKIE = import.meta.env.VITE_COOKIE_AUTH === 'true';
+let memAccess = null;
+const getAccess = () => (COOKIE ? memAccess : localStorage.getItem('rvs_access'));
+export const hasSession = () => COOKIE || !!localStorage.getItem('rvs_access');
+export function setTokens(d) {
+  if (COOKIE) { memAccess = d.accessToken; return; }
+  localStorage.setItem('rvs_access', d.accessToken);
+  if (d.refreshToken) localStorage.setItem('rvs_refresh', d.refreshToken);
+}
+export function clearTokens() { memAccess = null; localStorage.removeItem('rvs_access'); localStorage.removeItem('rvs_refresh'); }
+const cred = () => ({ credentials: COOKIE ? 'include' : 'same-origin' });
+
 const compute = () => {
   const server = getServer();
   if (server) return `${server.replace(/\/+$/, '')}/api`;
@@ -16,28 +30,29 @@ export function setServer(url) {
   BASE = compute();
 }
 
-const get = (key) => localStorage.getItem(key);
-
-async function refresh() {
-  const refreshToken = get('rvs_refresh');
-  if (!refreshToken) return false;
-  try {
-    const res = await fetch(`${BASE}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken }) });
-    if (!res.ok) return false;
-    const data = await res.json();
-    localStorage.setItem('rvs_access', data.accessToken);
-    localStorage.setItem('rvs_refresh', data.refreshToken);
-    return true;
-  } catch { return false; }
+let refreshing = null; // one refresh at a time (the server rotates the refresh token on every use)
+function refresh() {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const refreshToken = COOKIE ? null : localStorage.getItem('rvs_refresh');
+    if (!COOKIE && !refreshToken) return false;
+    try {
+      const res = await fetch(`${BASE}/auth/refresh`, { method: 'POST', ...cred(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(COOKIE ? {} : { refreshToken }) });
+      if (!res.ok) { if (res.status === 401) clearTokens(); return false; } // only a rejected token ends the session
+      setTokens(await res.json());
+      return true;
+    } catch { return false; }
+  })().finally(() => { refreshing = null; });
+  return refreshing;
 }
 
 export async function api(path, { method = 'GET', body, retry = true } = {}) {
   let res;
   try {
-    const accessToken = get('rvs_access');
+    const accessToken = getAccess();
     const headers = { 'Content-Type': 'application/json' };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`; // only send it when a token exists
-    res = await fetch(`${BASE}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    res = await fetch(`${BASE}${path}`, { method, ...cred(), headers, body: body ? JSON.stringify(body) : undefined });
   } catch (error) {
     console.error('API NETWORK ERROR:', error);
     throw new Error('Network error. Check your connection.');
@@ -54,10 +69,10 @@ export async function upload(path, form) {
   await api('/auth/me');
   let res;
   try {
-    const accessToken = get('rvs_access');
+    const accessToken = getAccess();
     const headers = {};
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    res = await fetch(`${BASE}${path}`, { method: 'POST', headers, body: form });
+    res = await fetch(`${BASE}${path}`, { method: 'POST', ...cred(), headers, body: form });
   } catch (error) {
     console.error('UPLOAD NETWORK ERROR:', error);
     throw new Error('Network error. Upload failed.');

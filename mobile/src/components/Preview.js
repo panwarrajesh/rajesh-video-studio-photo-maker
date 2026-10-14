@@ -3,7 +3,7 @@ import { View, Text, Image } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useAudioPlayer } from 'expo-audio';
 import { useEditor } from '../state/editor';
-import * as T from '../../../shared/timeline.js';
+import * as T from '../shared/timeline.js';
 import { mediaUrl } from '../config';
 
 // Preview approximations of the export filters (the exported file uses the real FFmpeg versions)

@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../state/auth';
 import { api } from '../services/api';
 import { uploadMedia } from '../services/upload';
+import { projectThumb } from '../services/thumbs';
 import { c } from '../theme';
 
 const RES = { '9:16': [1080, 1920], '16:9': [1920, 1080], '1:1': [1080, 1080], '4:5': [1080, 1350] };
@@ -33,6 +34,7 @@ export default function HomeScreen({ navigation }) {
         } catch (e) { failed.push(e.message); }
       }
       if (!ids.length) { setErr(failed[0] || 'Upload failed'); load(); return; }
+      projectThumb(f).then((t) => t && api.request(`/projects/${p.id}`, { method: 'PUT', body: { thumbnailUrl: t } })).catch(() => {}); // shows on the home screen, never blocks
       if (failed.length) Alert.alert('Some files were skipped', failed.slice(0, 3).join('\n'));
       navigation.navigate('Editor', { projectId: p.id, addIds: ids });
     } catch (e) { setErr(e.message); } finally { setBusy(null); }
@@ -50,6 +52,7 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
         <View style={{ flex: 1 }}><Text style={{ color: c.text, fontSize: 24, fontWeight: '800' }}>Hi {(user?.name || '').split(' ')[0]} 👋</Text><Text style={{ color: c.mut }}>{offline ? 'Offline – showing saved session' : 'What will you create today?'}</Text></View>
+        <Pressable onPress={() => navigation.navigate('Diag')} style={{ padding: 10 }}><Text style={{ color: c.mut, fontWeight: '700' }}>Help</Text></Pressable>
         <Pressable onPress={logout} style={{ padding: 10 }}><Text style={{ color: c.mut, fontWeight: '700' }}>Log out</Text></Pressable>
       </View>
       <Pressable onPress={newVideo} style={{ marginHorizontal: 16, borderRadius: 22, padding: 20, backgroundColor: c.brand }}>

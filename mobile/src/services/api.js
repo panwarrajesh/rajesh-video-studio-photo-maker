@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { createApiClient } from '../../../shared/apiClient.js';
+import { createApiClient } from '../shared/apiClient.js';
 import { API_URL } from '../config';
 
 // Tokens live in the OS keystore (Android Keystore / iOS Keychain), never in plain storage.

@@ -5,7 +5,7 @@ import { useAuth } from '../state/auth';
 import { API_URL } from '../config';
 import { c } from '../theme';
 
-export default function AuthScreen() {
+export default function AuthScreen({ navigation }) {
   const [mode, setMode] = useState('login'), [name, setName] = useState(''), [email, setEmail] = useState(''), [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false), [err, setErr] = useState('');
   const reg = mode === 'register';
@@ -29,6 +29,7 @@ export default function AuthScreen() {
           <Pressable onPress={submit} disabled={busy} style={{ backgroundColor: c.brand, borderRadius: 12, padding: 15, alignItems: 'center', opacity: busy ? 0.7 : 1 }}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>{reg ? 'Sign up' : 'Log in'}</Text>}
           </Pressable>
+          <Pressable onPress={() => navigation.navigate('Diag')}><Text style={{ color: c.mut, textAlign: 'center', padding: 6, fontSize: 13 }}>Not working? Check connection</Text></Pressable>
           <Pressable onPress={() => { setMode(reg ? 'login' : 'register'); setErr(''); }}><Text style={{ color: '#9fb0ff', textAlign: 'center', padding: 8 }}>{reg ? 'Have an account? Log in' : 'New here? Sign up'}</Text></Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -9,3 +9,6 @@ backend/uploads/
 *.jks
 
 mobile/.git-backup/
+
+# Android Studio project metadata
+/frontend/android/.idea/

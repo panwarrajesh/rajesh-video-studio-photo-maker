@@ -9,9 +9,8 @@ const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg', FFPROBE = process.env.FFPROB
 const num = (v, d, lo = -Infinity, hi = Infinity) => { const x = Number(v); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
 const f = (x) => Number(x).toFixed(3);
 // FFmpeg filter syntax: use / in paths and escape ':' (matters on Windows: C:\Users\... -> C\:/Users/...)
-const esc = (p) => String(p).replace(/\\/g, '/').replace(/:/g, '\\\\:');
+const esc = (p) => String(p).replace(/\\/g, '/').replace(/:/g, '\\:');
 const even = (x) => Math.max(2, Math.round(x / 2) * 2);
-
 const col = (v, d) => (/^#[0-9a-f]{6}$/i.test(String(v)) ? `0x${v.slice(1)}` : d);
 
 export function canvasSize(res, ratio) {

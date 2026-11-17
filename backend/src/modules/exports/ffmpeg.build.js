@@ -129,16 +129,39 @@ export async function build({ clips, media, W, H, fps, D, free, resolveFile }) {
     if (!fp) { warn.add('An audio clip was skipped because its media file was not found.'); continue; }
     inputs.push(['-i', fp]); audio.push({ k: inputs.length, c });
   }
+  // ---- audio. Every source is shaped on its own (trim, loop, speed, volume 0-200%, EQ, echo, fades, position), then mixed in buses:
+  //      original = sound of the video clips, voice = voice-overs, duck = music that lowers itself under the voice, music/other = the rest.
+  const bus = { orig: [], voice: [], duck: [], music: [], other: [] };
   audio.forEach(({ k, c }, i) => {
     const p = c.props, ms = Math.round(c.start * 1000), fi = num(p.fadeIn, 0, 0, 30), fo = num(p.fadeOut, 0, 0, 30);
-    const ch = [`atrim=start=${f(c.trimIn)}:duration=${f(c.duration * c.speed)}`, 'asetpts=PTS-STARTPTS', tempo(c.speed),
-      `volume=${p.muted ? 0 : f(num(p.volume, 1, 0, 1))}`, 'aformat=sample_rates=44100:channel_layouts=stereo'];
+    const span = c.duration * c.speed;                                             // seconds of SOURCE this clip plays
+    const win = Math.max(0.05, num(c.srcLen, span, 0.05, 1e6) - c.trimIn);         // what is left of the file after the trim point (= the loop window)
+    const loop = !!p.loop && c.track === 'AUDIO' && span > win + 0.05;
+    const ch = [`atrim=start=${f(c.trimIn)}:duration=${f(loop ? win : span)}`, 'asetpts=PTS-STARTPTS', 'aformat=sample_rates=44100:channel_layouts=stereo'];
+    if (loop) ch.push(`aloop=loop=-1:size=${Math.ceil(win * 44100) + 1}`, `atrim=duration=${f(span)}`, 'asetpts=PTS-STARTPTS');
+    ch.push(tempo(c.speed), `volume=${p.muted ? 0 : f(num(p.volume, 1, 0, 2))}`);
+    const bass = num(p.bass, 0, -15, 15), mids = num(p.mid, 0, -15, 15), treble = num(p.treble, 0, -15, 15), echo = num(p.echo, 0, 0, 1);
+    if (bass) ch.push(`bass=g=${f(bass)}:f=100`);
+    if (mids) ch.push(`equalizer=f=1000:t=q:w=1:g=${f(mids)}`);
+    if (treble) ch.push(`treble=g=${f(treble)}:f=4000`);
+    if (echo) ch.push(`aecho=0.85:0.88:${Math.round(180 + echo * 140)}:${f(0.2 + echo * 0.35)}`);
     if (fi) ch.push(`afade=t=in:st=0:d=${f(fi)}`);
     if (fo) ch.push(`afade=t=out:st=${f(Math.max(0, c.duration - fo))}:d=${f(fo)}`);
     ch.push(`adelay=${ms}|${ms}`);
     g.push(`[${k}:a]${ch.join(',')}[a${i}]`);
+    const name = c.track === 'VIDEO' ? 'orig' : c.kind === 'voice' ? 'voice' : c.kind === 'music' ? (p.duck === false ? 'music' : 'duck') : 'other';
+    bus[name].push(`a${i}`);
   });
-  if (audio.length) g.push(`${audio.map((_, i) => `[a${i}]`).join('')}amix=inputs=${audio.length}:normalize=0:duration=longest[aout]`);
+  const lbl = (arr) => arr.map((l) => `[${l}]`).join('');
+  const mixTo = (arr, out) => g.push(arr.length === 1 ? `[${arr[0]}]anull[${out}]` : `${lbl(arr)}amix=inputs=${arr.length}:normalize=0:duration=longest[${out}]`);
+  const final = [];
+  if (bus.voice.length) { mixTo(bus.voice, 'vbus'); g.push(bus.duck.length ? '[vbus]asplit=2[vmix][vsc]' : '[vbus]anull[vmix]'); final.push('vmix'); }
+  if (bus.duck.length) { // (the voice is padded with silence, otherwise the music would stop where the voice stops)
+    mixTo(bus.duck, 'dbus');
+    if (bus.voice.length) { g.push(`[vsc]apad=whole_dur=${D}[vsc2]`, '[dbus][vsc2]sidechaincompress=threshold=0.02:ratio=12:attack=40:release=700:makeup=1[dduck]'); final.push('dduck'); } else final.push('dbus');
+  }
+  for (const n of ['music', 'orig', 'other']) if (bus[n].length) { mixTo(bus[n], `${n}bus`); final.push(`${n}bus`); }
+  if (final.length) g.push(`${lbl(final)}amix=inputs=${final.length}:normalize=0:duration=longest,alimiter=limit=0.95:level=disabled[aout]`); // limiter: loud mixes never clip
   return { inputs, graph: g.join(';'), hasAudio: audio.length > 0, tmp, warnings: [...warn] };
 }
 

@@ -1,20 +1,13 @@
-# Dependencies and build output
 node_modules/
 dist/
-build/
-coverage/
 .expo/
-
-# Environment secrets
 .env
 .env.*
 !.env.example
-
-# Uploads and local data
 backend/uploads/
-*.log
-
-# Android signing keys
 *.keystore
-*.jksmobile/.git-nested-backup/
-mobile/.git-nested-backup/
+*.jks
+
+.env.production
+
+.env.production

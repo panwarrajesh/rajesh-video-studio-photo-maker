@@ -3,7 +3,7 @@ import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../../utils/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { enqueue, runExport } from './ffmpeg.service.js';
+import { enqueue, runExport, cancelExport, CANCELLED } from './ffmpeg.service.js';
 
 const r = Router();
 r.use(requireAuth);
@@ -28,11 +28,16 @@ r.post('/projects/:id/export', rateLimit({ windowMs: 60 * 60 * 1000, max: 20 }),
   const free = user.plan === 'FREE';
   if (free && Number(b.data.settings.resolution) > 720) return res.status(403).json({ error: 'Free plan exports up to 720p. Upgrade to Pro for 1080p and above.' });
   const job = await prisma.exportJob.create({ data: { projectId: project.id, settings: b.data.settings } });
-  enqueue(() => runExport({ jobId: job.id, userId: user.id, clips: b.data.clips, settings: b.data.settings, free }));
+  enqueue(job.id, () => runExport({ jobId: job.id, userId: user.id, clips: b.data.clips, settings: b.data.settings, free }));
   res.status(202).json({ id: job.id });
 });
 r.get('/exports/:id', async (req, res) => {
   const job = await prisma.exportJob.findFirst({ where: { id: req.params.id, project: { userId: req.user.id } } });
-  job ? res.json({ id: job.id, status: job.status, progress: job.progress, outputUrl: job.outputUrl, error: job.error, warnings: job.warnings }) : res.status(404).json({ error: 'Export not found' });
+  job ? res.json({ id: job.id, status: job.status, progress: job.progress, outputUrl: job.outputUrl, error: job.error, cancelled: job.error === CANCELLED, warnings: job.warnings }) : res.status(404).json({ error: 'Export not found' });
+});
+r.post('/exports/:id/cancel', async (req, res) => {
+  const job = await prisma.exportJob.findFirst({ where: { id: req.params.id, project: { userId: req.user.id } } });
+  if (!job) return res.status(404).json({ error: 'Export not found' });
+  res.json({ ok: await cancelExport(job.id) });
 });
 export default r;

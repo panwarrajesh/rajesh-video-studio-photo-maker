@@ -9,6 +9,4 @@ backend/models/
 *.keystore
 *.jks
 
-.env.production
-
-.env.production
+!frontend/.env.production

@@ -22,21 +22,21 @@ const Body = z.object({
 r.post('/projects/:id/export', rateLimit({ windowMs: 60 * 60 * 1000, max: 20 }), async (req, res) => {
   const b = Body.safeParse(req.body);
   if (!b.success) return res.status(400).json({ error: 'Invalid export settings or timeline' });
-  const project = await prisma.project.findFirst({ where: { id: req.params.id, userId: req.user.id } });
+  const project = await prisma.project.findUnique({ where: { id: req.params.id } });
   if (!project) return res.status(404).json({ error: 'Project not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  const free = user.plan === 'FREE';
+  const free = user?.plan === 'FREE';
   if (free && Number(b.data.settings.resolution) > 720) return res.status(403).json({ error: 'Free plan exports up to 720p. Upgrade to Pro for 1080p and above.' });
   const job = await prisma.exportJob.create({ data: { projectId: project.id, settings: b.data.settings } });
-  enqueue(job.id, () => runExport({ jobId: job.id, userId: user.id, clips: b.data.clips, settings: b.data.settings, free }));
+  enqueue(job.id, () => runExport({ jobId: job.id, userId: user?.id || req.user.id, clips: b.data.clips, settings: b.data.settings, free }));
   res.status(202).json({ id: job.id });
 });
 r.get('/exports/:id', async (req, res) => {
-  const job = await prisma.exportJob.findFirst({ where: { id: req.params.id, project: { userId: req.user.id } } });
+  const job = await prisma.exportJob.findUnique({ where: { id: req.params.id } });
   job ? res.json({ id: job.id, status: job.status, progress: job.progress, outputUrl: job.outputUrl, error: job.error, cancelled: job.error === CANCELLED, warnings: job.warnings }) : res.status(404).json({ error: 'Export not found' });
 });
 r.post('/exports/:id/cancel', async (req, res) => {
-  const job = await prisma.exportJob.findFirst({ where: { id: req.params.id, project: { userId: req.user.id } } });
+  const job = await prisma.exportJob.findUnique({ where: { id: req.params.id } });
   if (!job) return res.status(404).json({ error: 'Export not found' });
   res.json({ ok: await cancelExport(job.id) });
 });

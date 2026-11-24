@@ -52,12 +52,15 @@ export default function Dashboard() {
       <header className="top"><Logo /><span className="grow" />
         <div className="pwrap" onClick={(e) => e.stopPropagation()}>
           <button className="avatar" title="Account" onClick={() => setPm(!pm)}>{first.charAt(0).toUpperCase()}</button>
-          {pm && <div className="pmenu right"><div className="who"><b>{user?.name}</b><small className="muted">{user?.plan} plan</small></div><button onClick={logout}><Icon name="logout" size={16} /> Log out</button></div>}
+          {pm && <div className="pmenu right"><div className="who"><b>{user?.name || 'Rajesh'}</b><small className="muted">{user?.plan || 'PRO'} plan</small></div></div>}
         </div>
       </header>
       <main className="wrap">
         <InstallBanner />
         <h1 className="greet">Hi {first} 👋<span>What will you create today?</span></h1>
+        <div className="storage-info-pill">
+          <span>⚡ <b>Auto Storage Saver Active:</b> Ek time par 1 active video project rehta hai. Video edit karein & download karein. Nayi video start karne par purani video files auto-clean ho jati hain.</span>
+        </div>
         <div className="hero2">
           <button className="tile t1" onClick={() => fileRef.current?.click()}><i><Icon name="plus" size={26} /></i><b>New video</b><small>Pick photos & videos</small></button>
           <button className="tile t2" onClick={() => nav('/studio')}><i><Icon name="film" size={26} /></i><b>Photo Video Maker</b><small>Photos to cinematic video</small></button>

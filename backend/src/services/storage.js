@@ -26,6 +26,7 @@ export async function saveFile(localPath, key, contentType) {
   await fs.unlink(localPath).catch(() => {});
   return `${base()}/${key}`;
 }
+
 export async function removeFile(url) {
   if (!/^https?:/.test(url)) return fs.unlink(path.join(UPLOAD_DIR, path.basename(url)));
   const c = await client();

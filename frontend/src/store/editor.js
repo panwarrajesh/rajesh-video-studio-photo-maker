@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export const totalDuration = (clips) => Math.max(0, ...clips.map((c) => c.start + c.duration));
 export const DEFAULT_PROPS = { scale: 1, x: 0, y: 0, rotation: 0, flipH: false, flipV: false, opacity: 1, blur: 0, cropT: 0, cropR: 0, cropB: 0, cropL: 0, volume: 1, muted: false, fadeIn: 0, fadeOut: 0, anim: 'none', filter: 'original', filterAmt: 1, trans: 'none', transDur: 0.6, br: 1, ct: 1, sa: 1 };
-export const TEXT_DEFAULTS = { text: 'Your text', fontFamily: 'Inter, system-ui, sans-serif', fontSize: 6, color: '#ffffff', bg: '', bold: true, italic: false, underline: false, align: 'center', letterSpacing: 0, lineHeight: 1.2, shadow: true, stroke: 0, strokeColor: '#000000' };
+export const TEXT_DEFAULTS = { text: 'Your text', fontFamily: 'Poppins, sans-serif', fontSize: 6, color: '#ffffff', bg: '', bold: true, italic: false, underline: false, align: 'center', letterSpacing: 0, lineHeight: 1.2, shadow: true, stroke: 0, strokeColor: '#000000', glow: 0, glowColor: '#00f0ff', stylePreset: 'none', gradient: '', bgRadius: 8, bgPadding: '0.2em 0.5em' };
 const MIN = 0.1;
 export const DEFAULT_TRACKS = () => Object.fromEntries(['VIDEO', 'IMAGE', 'AUDIO', 'TEXT', 'OVERLAY', 'EFFECTS'].map((t) => [t, { locked: false, hidden: false, muted: false }]));
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -147,5 +147,38 @@ export const useEditor = create((set, get) => {
     seek: (t) => set({ playhead: Math.max(0, t) }),
     setPlaying: (playing) => set({ playing }),
     setZoom: (zoom) => set({ zoom }),
+    addCaptions(list, baseProps = {}) {
+      rec(null);
+      const newClips = list.map((item) => ({
+        id: crypto.randomUUID(),
+        mediaId: null,
+        kind: 'text',
+        track: 'TEXT',
+        isCaption: true,
+        start: Math.max(0, item.start),
+        duration: Math.max(0.5, item.duration || 2.5),
+        trimIn: 0,
+        speed: 1,
+        srcLen: 3600,
+        props: {
+          ...TEXT_DEFAULTS,
+          ...baseProps,
+          text: item.text,
+          y: baseProps.y ?? 38,
+        },
+        keyframes: {},
+      }));
+      set((s) => ({ clips: [...s.clips, ...newClips], selected: newClips[0]?.id || s.selected }));
+    },
+    clearCaptions() {
+      rec(null);
+      set((s) => ({ clips: s.clips.filter((c) => !c.isCaption), selected: null }));
+    },
+    updateCaptionsStyle(propsToUpdate) {
+      rec(null);
+      set((s) => ({
+        clips: s.clips.map((c) => (c.isCaption ? { ...c, props: { ...c.props, ...propsToUpdate } } : c)),
+      }));
+    },
   };
 });

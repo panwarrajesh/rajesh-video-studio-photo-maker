@@ -4,12 +4,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-
 import authRoutes from './modules/auth/auth.routes.js';
 import projectRoutes from './modules/projects/projects.routes.js';
 import mediaRoutes, { UPLOAD_DIR } from './modules/media/media.routes.js';
 import exportRoutes from './modules/exports/exports.routes.js';
+import captionsRoutes from './modules/captions/captions.routes.js';
 import healthDeep from './modules/health/index.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 const app = express();
 
@@ -24,7 +26,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   // Android app (Capacitor WebView) - without these every request from the APK is blocked
   'http://localhost',
-  'https://localhost',
+  'https://localhost',     
   'capacitor://localhost',
   'ionic://localhost',
   // extra origins from the CLIENT_URL env variable (comma separated)
@@ -34,9 +36,13 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true); // no origin = Postman / server-to-server
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin)
+      ) return callback(null, true); // allow localhost and all local network mobile devices
       console.log('CORS blocked:', origin);
-      return callback(null, false); // browser blocks it; the server does not crash with a 500
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -52,11 +58,28 @@ app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }), authRout
 app.use('/api/projects', projectRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api', exportRoutes);
+app.use('/api/captions', captionsRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error('SERVER ERROR:', err);
   res.status(500).json({ error: 'Server error' });
 });
+
+// Periodic sweep: clean up finished exports older than 2 hours so disk storage never fills up
+setInterval(async () => {
+  try {
+    const expDir = path.join(UPLOAD_DIR, 'exports');
+    const files = await fs.readdir(expDir).catch(() => []);
+    const now = Date.now();
+    for (const f of files) {
+      const fp = path.join(expDir, f);
+      const st = await fs.stat(fp).catch(() => null);
+      if (st && now - st.mtimeMs > 2 * 3600 * 1000) {
+        await fs.unlink(fp).catch(() => {});
+      }
+    }
+  } catch {}
+}, 30 * 60 * 1000).unref();
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`API running on port ${PORT}`));

@@ -31,12 +31,12 @@ const chunkStore = createChunkStore(path.join(UPLOAD_DIR, 'tmp'));
 setInterval(() => chunkStore.sweep().catch(() => {}), 3600 * 1000).unref();
 r.use('/uploads', createUploadRouter({
   store: chunkStore, uploadDir: UPLOAD_DIR, saveFile, probeDuration,
-  ownsProject: (userId, id) => prisma.project.findFirst({ where: { id, userId } }),
+  ownsProject: (_userId, id) => prisma.project.findUnique({ where: { id } }),
   createMedia: (data) => prisma.projectMedia.create({ data }),
 }));
 
 r.get('/', async (req, res) => {
-  const where = { userId: req.user.id };
+  const where = {};
   if (req.query.projectId) where.projectId = String(req.query.projectId);
   res.json(await prisma.projectMedia.findMany({ where, orderBy: { id: 'desc' } }));
 });
@@ -44,7 +44,7 @@ r.post('/upload', (req, res) => upload.single('file')(req, res, async (err) => {
   if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 500MB)' : err.message });
   if (!req.file) return res.status(400).json({ error: 'No file received' });
   const { projectId } = req.body;
-  if (projectId && !(await prisma.project.findFirst({ where: { id: projectId, userId: req.user.id } }))) {
+  if (projectId && !(await prisma.project.findUnique({ where: { id: projectId } }))) {
     await fs.unlink(req.file.path).catch(() => {});
     return res.status(404).json({ error: 'Project not found' });
   }

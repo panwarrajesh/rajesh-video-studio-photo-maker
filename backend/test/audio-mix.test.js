@@ -34,10 +34,12 @@ test('volume slider: 200% is about +6 dB louder than 100%, 0% is silent', { skip
   const a = level(await render('v1', [screen(8), music('m', { props: { volume: 1 } })]), 1, 3, 220), b = level(await render('v2', [screen(8), music('m', { props: { volume: 2 } })]), 1, 3, 220), z = level(await render('v0', [screen(8), music('m', { props: { volume: 0 } })], true), 1, 3, 220);
   assert.ok(Math.abs(b - a - 6) < 1.5, `delta ${b - a}`); assert.ok(z < -60, `muted level ${z}`);
 });
+
 test('fade in and fade out shape the start and end', { skip: !has }, async () => {
   const o = await render('fade', [screen(6), music('m', { duration: 6, props: { fadeIn: 1.5, fadeOut: 1.5 } })]), mid = level(o, 2, 1.5, 220);
   assert.ok(level(o, 0, 0.4, 220) < mid - 10, 'fade-in'); assert.ok(level(o, 5.5, 0.4, 220) < mid - 10, 'fade-out');
 });
+
 test('loop: a 2 s music file fills a 6 s clip; without loop it stops after 2 s', { skip: !has }, async () => {
   const mk = (loop) => [screen(6), { ...C('m', 'AUDIO', 'short', 0, 6, { kind: 'music', props: { loop } }), srcLen: 2 }];
   assert.ok(level(await render('loop1', mk(true)), 4.2, 1.5, 220) > -40, 'looped audio present at 4-6 s'); assert.ok(level(await render('loop0', mk(false)), 4.2, 1.5, 220) < -60, 'no loop = silence');

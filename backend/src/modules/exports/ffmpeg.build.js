@@ -8,8 +8,8 @@ const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg', FFPROBE = process.env.FFPROB
 
 const num = (v, d, lo = -Infinity, hi = Infinity) => { const x = Number(v); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
 const f = (x) => Number(x).toFixed(3);
-// FFmpeg filter syntax: use / in paths and escape ':' (matters on Windows: C:\Users\... -> C\:/Users/...)
-const esc = (p) => String(p).replace(/\\/g, '/').replace(/:/g, '\\:');
+// FFmpeg filter syntax: use / in paths and escape ':' (matters on Windows: C:\Users\... -> C\\:/Users/...)
+const esc = (p) => String(p).replace(/\\/g, '/').replace(/:/g, '\\\\:');
 const even = (x) => Math.max(2, Math.round(x / 2) * 2);
 const col = (v, d) => (/^#[0-9a-f]{6}$/i.test(String(v)) ? `0x${v.slice(1)}` : d);
 
@@ -80,7 +80,9 @@ export async function build({ clips, media, W, H, fps, D, free, resolveFile }) {
     if (c.track === 'TEXT') {
       const px = (num(p.fontSize, 6, 1, 40) / 100) * W, op = f(num(p.opacity, 1, 0, 1));
       const fx = 0.5 + num(p.x, 0, -100, 100) / 200, fy = 0.5 + num(p.y, 0, -100, 100) / 200;
-      let d = `drawtext=textfile=${esc(await textFile(String(p.text ?? '').slice(0, 500)))}${font}:fontsize=${f(px)}:fontcolor=${col(p.color, '0xffffff')}@${op}:x=${f(W * fx)}-text_w/2:y=${f(H * fy)}-text_h/2:enable='between(t,${f(s)},${f(e)})'`;
+      const isIndic = /[\u0900-\u097F]/.test(String(p.text ?? ''));
+      const activeFont = (isIndic && process.platform === 'win32') ? `:fontfile=${esc('C:/Windows/Fonts/Nirmala.ttc')}` : font;
+      let d = `drawtext=textfile=${esc(await textFile(String(p.text ?? '').slice(0, 500)))}${activeFont}:fontsize=${f(px)}:fontcolor=${col(p.color, '0xffffff')}@${op}:x=${f(W * fx)}-text_w/2:y=${f(H * fy)}-text_h/2:enable='between(t,${f(s)},${f(e)})'`;
       if (p.shadow) d += ':shadowcolor=black@0.7:shadowx=2:shadowy=2';
       if (p.bg) d += `:box=1:boxcolor=${col(p.bg, '0x000000')}@1:boxborderw=${f(px * 0.15)}`;
       if (num(p.stroke, 0) > 0) d += `:borderw=${f((num(p.stroke, 0, 0, 8) * W) / 1000)}:bordercolor=${col(p.strokeColor, '0x000000')}`;

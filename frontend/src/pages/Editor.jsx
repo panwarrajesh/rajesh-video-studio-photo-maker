@@ -4,6 +4,7 @@ import { api, upload, fileUrl } from '../services/api.js';
 import { useEditor, totalDuration, TEXT_DEFAULTS, evalProp, evalProps, kfTimes, DEFAULT_TRACKS } from '../store/editor.js';
 import { useShortcuts } from '../hooks/useShortcuts.js';
 import ExportDialog from '../features/ExportDialog.jsx';
+import AutoCaptions from '../features/AutoCaptions.jsx';
 import { useAutosave } from '../hooks/useAutosave.js';
 import { Icon, Logo } from '../components/Icon.jsx';
 import { MobileTimeline, MobileTransport, MobileToolbar, MiniSheet } from '../editor/Mobile.jsx';
@@ -81,7 +82,21 @@ const SHAPES = {
   circle: 'M50 6A44 44 0 1 1 49.9 6Z',
   banner: 'M6 28H94V72H6Z',
 };
-const FONTS = [['Sans', 'Inter, system-ui, sans-serif'], ['Serif', 'Georgia, serif'], ['Mono', 'ui-monospace, monospace'], ['Impact', 'Impact, Haettenschweiler, sans-serif'], ['Casual', '"Comic Sans MS", cursive']];
+const FONTS = [
+  ['Poppins (Modern Hindi & English)', 'Poppins, sans-serif'],
+  ['Mukta (Clean Hindi Sans)', 'Mukta, sans-serif'],
+  ['Noto Sans Devanagari (Hindi Bold)', '"Noto Sans Devanagari", sans-serif'],
+  ['Yatra One (Royal Hindi Calligraphy)', '"Yatra One", cursive'],
+  ['Rozha One (Royal Wedding / Headline)', '"Rozha One", serif'],
+  ['Tiro Devanagari (Classic Hindi)', '"Tiro Devanagari Hindi", serif'],
+  ['Anton (Viral Shorts & Reels)', 'Anton, sans-serif'],
+  ['Bebas Neue (Cinematic Title)', '"Bebas Neue", sans-serif'],
+  ['Cinzel (Epic Luxury / Gold)', 'Cinzel, serif'],
+  ['Playfair Display (Fashion / Elegant)', '"Playfair Display", serif'],
+  ['Caveat (Handwriting & Shayari)', 'Caveat, cursive'],
+  ['Inter (Clean Tech)', 'Inter, system-ui, sans-serif'],
+  ['Impact (Meme Bold)', 'Impact, sans-serif'],
+];
 const Shape = ({ shape, color }) => <svg viewBox="0 0 100 100" width="100%" height="100%"><path d={SHAPES[shape]} fill={color} /></svg>;
 const bounce = (u) => 1 - Math.abs(Math.cos(u * 3 * Math.PI)) * (1 - u);
 
@@ -90,10 +105,13 @@ function animFx(kind, u) {
   if (u >= 1) return f;
   if (kind === 'fade') f.o = u;
   if (kind === 'slide') { f.x = (1 - u) * -60; f.o = u; }
+  if (kind === 'slideRight') { f.x = (1 - u) * 60; f.o = u; }
   if (kind === 'zoom') { f.s = 0.3 + 0.7 * u; f.o = u; }
   if (kind === 'bounce') f.y = (1 - bounce(u)) * -80;
-  if (kind === 'pop') f.s = u < 0.6 ? (u / 0.6) * 1.2 : 1.2 - 0.2 * ((u - 0.6) / 0.4);
-  if (kind === 'blur') { f.blur = (1 - u) * 12; f.o = u; }
+  if (kind === 'pop') f.s = u < 0.6 ? (u / 0.6) * 1.25 : 1.25 - 0.25 * ((u - 0.6) / 0.4);
+  if (kind === 'blur') { f.blur = (1 - u) * 16; f.o = u; }
+  if (kind === 'drop') { f.y = (1 - u) * -100; f.o = Math.min(1, u * 2); f.s = u < 0.8 ? 1.08 : 1; }
+  if (kind === 'pulse') { f.s = 1 + Math.sin(u * Math.PI * 4) * 0.08; }
   return f;
 }
 function vstyle(c, t, overlay) {
@@ -105,16 +123,120 @@ function vstyle(c, t, overlay) {
     transform: `${overlay ? 'translate(-50%,-50%)' : `translate(${p.x}%,${p.y}%)`} translate(${f.x}%,${f.y}%) rotate(${p.rotation}deg) scale(${p.scale * f.s * (p.flipH ? -1 : 1)},${p.scale * f.s * (p.flipV ? -1 : 1)})`,
   };
 }
-function Layer({ c, t }) {
+
+function buildTextShadow(p) {
+  const shadows = [];
+  if (p.glow > 0) {
+    const col = p.glowColor || '#00f0ff';
+    shadows.push(`0 0 ${p.glow}px ${col}`, `0 0 ${p.glow * 2}px ${col}`);
+  }
+  if (p.stylePreset === 'neon') {
+    const col = p.glowColor || '#00f0ff';
+    shadows.push('0 0 5px #ffffff', `0 0 12px ${col}`, `0 0 25px ${col}`, `0 0 40px ${col}`);
+  } else if (p.stylePreset === '3d') {
+    shadows.push('2px 2px 0px #000', '4px 4px 0px #1c1917', '6px 6px 0px #292524', '8px 8px 12px rgba(0,0,0,0.85)');
+  } else if (p.stylePreset === 'glitch') {
+    shadows.push('-3px 0 #ff0055', '3px 0 #00ffff', '0 2px 8px rgba(0,0,0,0.8)');
+  } else if (p.stylePreset === 'gold') {
+    shadows.push('0 2px 4px rgba(0,0,0,0.8)', '0 0 14px rgba(255,215,0,0.6)');
+  } else if (p.stylePreset === 'fire') {
+    shadows.push('0 0 8px #ff4500', '0 0 16px #ff8c00', '0 0 28px #ffd700');
+  } else if (p.shadow) {
+    shadows.push('0 2px 8px rgba(0,0,0,0.85)');
+  }
+  return shadows.length ? shadows.join(', ') : 'none';
+}
+
+function Layer({ c, t, isSelected, onSelect }) {
   const p = evalProps(c, t), st = { ...vstyle(c, t, true), left: `${50 + p.x / 2}%`, top: `${50 + p.y / 2}%` };
-  if (c.kind === 'sticker') return <div className="ovl" style={{ ...st, width: '20cqw', height: '20cqw' }}><Shape shape={p.shape} color={p.color} /></div>;
-  const n = p.text.length;
-  const text = p.anim === 'typewriter' ? p.text.slice(0, Math.ceil(n * Math.min(1, (t - c.start) / Math.max(0.3, n * 0.06)))) : p.text;
+  if (c.kind === 'sticker') {
+    return (
+      <div
+        className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
+        style={{ ...st, width: '20cqw', height: '20cqw', pointerEvents: 'auto', cursor: 'pointer' }}
+        onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+      >
+        <Shape shape={p.shape} color={p.color} />
+      </div>
+    );
+  }
+  const n = (p.text || '').length;
+  const text = p.anim === 'typewriter'
+    ? p.text.slice(0, Math.ceil(n * Math.min(1, (t - c.start) / Math.max(0.3, n * 0.06))))
+    : (p.text ?? '');
+
+  const textShadow = buildTextShadow(p);
+  const isHook = p.stylePreset === 'hook';
+  const isSubtitle = p.stylePreset === 'subtitles';
+  const isNews = p.stylePreset === 'news';
+  const isGold = p.stylePreset === 'gold';
+
+  let bg = p.bg || 'transparent';
+  let color = p.color || '#ffffff';
+  let padding = p.bg ? (p.bgPadding || '0.2em 0.5em') : 0;
+  let borderRadius = p.bg ? `${p.bgRadius ?? 8}px` : 0;
+  let borderLeft = undefined;
+  let bgClip = undefined;
+  let textFillColor = undefined;
+  let bgImage = undefined;
+
+  if (isHook) {
+    bg = '#ffe600';
+    color = '#000000';
+    padding = '0.25em 0.65em';
+    borderRadius = '10px';
+  } else if (isSubtitle) {
+    bg = 'rgba(10, 15, 25, 0.85)';
+    padding = '0.3em 0.8em';
+    borderRadius = '8px';
+  } else if (isNews) {
+    bg = 'linear-gradient(90deg, #dc2626, #991b1b)';
+    padding = '0.25em 0.8em';
+    borderLeft = '5px solid #facc15';
+    borderRadius = '4px';
+  }
+
+  if (isGold) {
+    bgImage = 'linear-gradient(135deg, #fff7b2 0%, #ffd700 40%, #ff8c00 100%)';
+    bgClip = 'text';
+    textFillColor = 'transparent';
+  } else if (p.gradient) {
+    bgImage = p.gradient;
+    bgClip = 'text';
+    textFillColor = 'transparent';
+  }
+
   return (
-    <div className="ovl" style={{ ...st, fontFamily: p.fontFamily, fontSize: `${p.fontSize}cqw`, color: p.color, background: p.bg || 'transparent', padding: p.bg ? '0.15em 0.4em' : 0,
-      fontWeight: p.bold ? 700 : 400, fontStyle: p.italic ? 'italic' : 'normal', textDecoration: p.underline ? 'underline' : 'none', textAlign: p.align,
-      letterSpacing: `${p.letterSpacing}px`, lineHeight: p.lineHeight, textShadow: p.shadow ? '0 2px 8px rgba(0,0,0,.7)' : 'none',
-      WebkitTextStroke: p.stroke ? `${p.stroke}px ${p.strokeColor}` : undefined, whiteSpace: 'pre-wrap' }}>{text}</div>
+    <div
+      className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
+      onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+      style={{
+        ...st,
+        fontFamily: p.fontFamily,
+        fontSize: `${p.fontSize}cqw`,
+        color,
+        background: bg,
+        backgroundImage: bgImage,
+        WebkitBackgroundClip: bgClip,
+        WebkitTextFillColor: textFillColor,
+        padding,
+        borderRadius,
+        borderLeft,
+        fontWeight: p.bold ? 700 : 400,
+        fontStyle: p.italic ? 'italic' : 'normal',
+        textDecoration: p.underline ? 'underline' : 'none',
+        textAlign: p.align || 'center',
+        letterSpacing: `${p.letterSpacing || 0}px`,
+        lineHeight: p.lineHeight || 1.2,
+        textShadow,
+        WebkitTextStroke: p.stroke ? `${p.stroke}px ${p.strokeColor}` : undefined,
+        whiteSpace: 'pre-wrap',
+        pointerEvents: 'auto',
+        cursor: 'pointer',
+      }}
+    >
+      {text}
+    </div>
   );
 }
 
@@ -147,22 +269,168 @@ function clipStyle(c, t) {
   return { ...st, filter: f, opacity: st.opacity * (x.opacity ?? 1), clipPath: x.clipPath || st.clipPath, transform: `${x.transform || ''} ${st.transform}` };
 }
 
-const TABS = [['media', 'film', 'Media'], ['text', 'type', 'Text'], ['audio', 'music', 'Audio'], ['stickers', 'smile', 'Stickers'], ['effects', 'sparkles', 'Effects']];
-const PRESETS = [['Heading', { fontSize: 9, bold: true }], ['Subtitle', { fontSize: 5, bold: false }], ['Caption', { fontSize: 3.6, bold: true, bg: '#000000' }]];
+const TABS = [['media', 'film', 'Media'], ['text', 'type', 'Text'], ['captions', 'mic', 'Captions'], ['audio', 'music', 'Audio'], ['stickers', 'smile', 'Stickers'], ['effects', 'sparkles', 'Effects']];
+const TEXT_PRESETS = [
+  {
+    category: '🇮🇳 हिंदी टाइटल्स',
+    items: [
+      {
+        name: 'नमस्ते 🙏 (शाही गोल्ड)',
+        preview: 'नमस्ते 🙏',
+        previewStyle: { fontFamily: '"Yatra One", cursive', color: '#ffd700', textShadow: '0 0 10px rgba(255,215,0,0.6)' },
+        props: { text: 'नमस्ते 🙏', fontFamily: '"Yatra One", cursive', fontSize: 8.5, color: '#ffd700', stylePreset: 'gold', bold: true, anim: 'zoom' },
+      },
+      {
+        name: 'शुभ विवाह 💍 (Royal Wedding)',
+        preview: 'शुभ विवाह ❤️',
+        previewStyle: { fontFamily: '"Rozha One", serif', color: '#ffffff', background: '#991b1b', padding: '2px 8px', borderRadius: '6px' },
+        props: { text: 'शुभ विवाह ❤️', fontFamily: '"Rozha One", serif', fontSize: 7, color: '#ffffff', stylePreset: 'none', bg: '#991b1b', bgRadius: 8, bold: true, anim: 'fade' },
+      },
+      {
+        name: 'प्यारी यादें 💖 (Romantic / Shayari)',
+        preview: 'प्यारी यादें 💖',
+        previewStyle: { fontFamily: 'Caveat, cursive', color: '#ff758c', textShadow: '0 0 10px #ff758c' },
+        props: { text: 'प्यारी यादें 💖', fontFamily: 'Caveat, cursive', fontSize: 9, color: '#ff758c', stylePreset: 'neon', glow: 12, glowColor: '#ff758c', bold: true, anim: 'slide' },
+      },
+      {
+        name: 'नया धमाका 🔥 (Viral Reel)',
+        preview: 'नया धमाका 🔥',
+        previewStyle: { fontFamily: 'Anton, sans-serif', color: '#ff3b30', textShadow: '0 0 12px #ff4500' },
+        props: { text: 'नया धमाका 🔥', fontFamily: 'Anton, sans-serif', fontSize: 8.5, color: '#ffffff', stylePreset: 'fire', bold: true, stroke: 1.5, strokeColor: '#000000', anim: 'pop' },
+      },
+      {
+        name: '🔴 ब्रेकिंग न्यूज़ (Alert)',
+        preview: '🔴 ब्रेकिंग न्यूज़',
+        previewStyle: { fontFamily: '"Noto Sans Devanagari", sans-serif', background: '#dc2626', color: '#ffffff', padding: '2px 8px', borderLeft: '4px solid #facc15' },
+        props: { text: '🔴 ब्रेकिंग न्यूज़ : आज का बड़ा अपडेट', fontFamily: '"Noto Sans Devanagari", sans-serif', fontSize: 5.5, stylePreset: 'news', bold: true, anim: 'slide' },
+      },
+      {
+        name: '॥ जय श्री राम ॥ 🚩',
+        preview: 'जय श्री राम 🚩',
+        previewStyle: { fontFamily: '"Yatra One", cursive', color: '#ff7700', textShadow: '2px 2px 0px #000' },
+        props: { text: '॥ जय श्री राम ॥ 🚩', fontFamily: '"Yatra One", cursive', fontSize: 8, color: '#ff7700', stylePreset: '3d', bold: true, stroke: 1, strokeColor: '#7c2d12', anim: 'drop' },
+      },
+      {
+        name: 'शायरी / विचार ✍️ (Quote)',
+        preview: 'कुछ अनकहे शब्द... ✍️',
+        previewStyle: { fontFamily: 'Mukta, sans-serif', color: '#e2e8f0', background: 'rgba(0,0,0,0.7)', padding: '3px 8px', borderRadius: '6px' },
+        props: { text: 'कुछ अनकहे शब्द...\nजो दिल को छू जाएं ✍️', fontFamily: 'Mukta, sans-serif', fontSize: 5, color: '#ffffff', stylePreset: 'subtitles', bold: true, align: 'center', anim: 'typewriter' },
+      },
+    ],
+  },
+  {
+    category: '⚡ Viral Reels & Shorts',
+    items: [
+      {
+        name: 'WAIT FOR IT... 😱 (Hook)',
+        preview: 'WAIT FOR IT... 😱',
+        previewStyle: { fontFamily: 'Anton, sans-serif', background: '#ffe600', color: '#000000', padding: '2px 8px', borderRadius: '6px' },
+        props: { text: 'WAIT FOR IT... 😱', fontFamily: 'Anton, sans-serif', fontSize: 8, stylePreset: 'hook', bold: true, anim: 'pop' },
+      },
+      {
+        name: 'TRENDING NOW ⚡ (Neon)',
+        preview: 'TRENDING ⚡',
+        previewStyle: { fontFamily: 'Poppins, sans-serif', color: '#ffffff', textShadow: '0 0 12px #00f0ff' },
+        props: { text: 'TRENDING NOW ⚡', fontFamily: 'Poppins, sans-serif', fontSize: 7, color: '#ffffff', stylePreset: 'neon', glow: 15, glowColor: '#00f0ff', bold: true, anim: 'pulse' },
+      },
+      {
+        name: 'CINEMATIC VIBES ✨ (Movie)',
+        preview: 'THE JOURNEY ✨',
+        previewStyle: { fontFamily: 'Cinzel, serif', color: '#ffd700', letterSpacing: '2px' },
+        props: { text: 'THE JOURNEY ✨', fontFamily: 'Cinzel, serif', fontSize: 7, stylePreset: 'gold', letterSpacing: 4, bold: true, anim: 'blur' },
+      },
+      {
+        name: 'GLITCH VIBES 👾',
+        preview: 'ERROR 404 👾',
+        previewStyle: { fontFamily: 'Impact, sans-serif', color: '#ffffff', textShadow: '-2px 0 #ff0055, 2px 0 #00ffff' },
+        props: { text: 'ERROR 404 👾', fontFamily: 'Impact, sans-serif', fontSize: 7.5, color: '#ffffff', stylePreset: 'glitch', bold: true, anim: 'bounce' },
+      },
+      {
+        name: 'PRO CAPTION / SUBTITLE 💬',
+        preview: 'Clean Captions 💬',
+        previewStyle: { fontFamily: 'Poppins, sans-serif', background: 'rgba(0,0,0,0.8)', color: '#ffffff', padding: '2px 8px', borderRadius: '6px' },
+        props: { text: 'Type your captions here...', fontFamily: 'Poppins, sans-serif', fontSize: 5, color: '#ffffff', stylePreset: 'subtitles', bold: true, anim: 'fade' },
+      },
+      {
+        name: 'SUBSCRIBE 🔔 (YouTube)',
+        preview: 'SUBSCRIBE 🔔',
+        previewStyle: { fontFamily: 'Poppins, sans-serif', background: '#e11d48', color: '#ffffff', padding: '2px 10px', borderRadius: '99px' },
+        props: { text: 'SUBSCRIBE 🔔', fontFamily: 'Poppins, sans-serif', fontSize: 5.5, color: '#ffffff', bg: '#e11d48', bgRadius: 99, bgPadding: '0.3em 0.8em', bold: true, anim: 'pop' },
+      },
+    ],
+  },
+  {
+    category: '📝 Basic Text',
+    items: [
+      {
+        name: 'Heading (शीर्षक)',
+        preview: 'Large Heading',
+        previewStyle: { fontFamily: 'Poppins, sans-serif', fontSize: '16px', fontWeight: 'bold' },
+        props: { text: 'Heading', fontFamily: 'Poppins, sans-serif', fontSize: 9, bold: true },
+      },
+      {
+        name: 'Subtitle (उपशीर्षक)',
+        preview: 'Subtitle Text',
+        previewStyle: { fontFamily: 'Poppins, sans-serif', fontSize: '13px' },
+        props: { text: 'Subtitle', fontFamily: 'Poppins, sans-serif', fontSize: 5.5, bold: false },
+      },
+      {
+        name: 'Body / Paragraph',
+        preview: 'Body paragraph text',
+        previewStyle: { fontFamily: 'Mukta, sans-serif', fontSize: '12px' },
+        props: { text: 'Add your text here...', fontFamily: 'Mukta, sans-serif', fontSize: 4, bold: false },
+      },
+    ],
+  },
+];
 
 function LeftPanel({ tab, setTab, projectId, setErr, onAdded }) {
   const addLayer = useEditor((x) => x.addLayer);
+  const [textCat, setTextCat] = useState(0);
   const add = (a) => { addLayer(a); onAdded(); };
   return (
     <div className="panel left">
       <div className="tabs">{TABS.map(([k, ic, l]) => <button key={k} className={`tab ${tab === k ? 'on' : ''}`} onClick={() => setTab(k)}><Icon name={ic} size={18} /><span>{l}</span></button>)}</div>
       <div className="tabcontent">
         {tab === 'media' && <MediaPanel projectId={projectId} setErr={setErr} onAdded={onAdded} />}
+        {tab === 'captions' && <AutoCaptions projectId={projectId} onClose={() => setTab('media')} />}
         {tab === 'audio' && <MediaPanel only="AUDIO" projectId={projectId} setErr={setErr} onAdded={onAdded} />}
         {tab === 'overlay' && <MediaPanel only="IMAGE" projectId={projectId} setErr={setErr} onAdded={onAdded} />}
-        {tab === 'text' && <div className="stack">
-          {PRESETS.map(([l, o]) => <button key={l} className="btn block" onClick={() => add({ track: 'TEXT', kind: 'text', ...TEXT_DEFAULTS, text: l, ...o })}><Icon name="type" size={16} /> {l}</button>)}
-          <small className="muted">Text is placed at the playhead. Change font, color and animation in Edit.</small></div>}
+        {tab === 'text' && (
+          <div className="tabbody">
+            <div className="text-tabs-head">
+              {['🇮🇳 हिंदी टाइटल्स', '⚡ Reels & Hooks', '📝 Basic Text'].map((t, i) => (
+                <button
+                  key={t}
+                  className={`text-cat-btn ${textCat === i ? 'active' : ''}`}
+                  onClick={() => setTextCat(i)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="text-grid">
+              {TEXT_PRESETS[textCat].items.map((item) => (
+                <div
+                  key={item.name}
+                  className="text-tpl-card"
+                  onClick={() => add({ track: 'TEXT', kind: 'text', ...TEXT_DEFAULTS, ...item.props })}
+                >
+                  <div>
+                    <div className="text-tpl-preview" style={item.previewStyle}>
+                      {item.preview}
+                    </div>
+                    <div className="text-tpl-name">{item.name}</div>
+                  </div>
+                  <button className="btn sm primary" style={{ pointerEvents: 'none' }}>+ Add</button>
+                </div>
+              ))}
+            </div>
+            <small className="muted" style={{ textAlign: 'center', marginTop: 4 }}>
+              Text timeline par playhead par add hoga. Properties se font, color & effects edit karein.
+            </small>
+          </div>
+        )}
         {tab === 'stickers' && <div className="stickers">{Object.keys(SHAPES).map((k) => (
           <button key={k} className="stk" title={k} onClick={() => add({ track: 'OVERLAY', kind: 'sticker', shape: k, color: '#ffb020' })}><Shape shape={k} color="#ffb020" /></button>))}</div>}
         {tab === 'effects' && <div className="chips">{Object.entries(EFFECTS).map(([k, v]) => (
@@ -173,7 +441,7 @@ function LeftPanel({ tab, setTab, projectId, setErr, onAdded }) {
 }
 
 function Preview() {
-  const { clips, media, playhead, playing, tracks: tk } = useEditor();
+  const { clips, media, playhead, playing, tracks: tk, selected } = useEditor();
   const v = useRef(), a = useRef(), stage = useRef();
   const at = (track) => !tk[track].hidden && clips.find((c) => c.track === track && playhead >= c.start && playhead < c.start + c.duration);
   const url = (c) => { const m = c && media.find((x) => x.id === c.mediaId); return m ? fileUrl(m.url) : undefined; };
@@ -185,7 +453,9 @@ function Preview() {
     <div ref={stage} className="stage" style={{ filter: fx.filters.join(' ') || undefined, transform: fx.transforms.join(' ') || undefined }}>
     <video ref={v} src={url(vc)} className="vid" style={{ display: vc ? 'block' : 'none', ...clipStyle(vc, playhead) }} playsInline onLoadedData={() => sync(v.current, vc, useEditor.getState().playhead, useEditor.getState().playing)} />
     {!vc && ic && <img className="vid" style={clipStyle(ic, playhead)} src={url(ic)} alt="" />}
-    {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker') && !tk[c.track].hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => <Layer key={c.id} c={c} t={playhead} />)}
+    {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker') && !tk[c.track].hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => (
+      <Layer key={c.id} c={c} t={playhead} isSelected={selected === c.id} onSelect={(cid) => useEditor.getState().select(cid)} />
+    ))}
     {fx.overlays.map((o, i) => <div key={i} className="ovfx" style={o} />)}
     {fx.pixel > 0 && <Pixelate stage={stage} size={fx.pixel} />}
     </div>
@@ -293,17 +563,145 @@ function MediaFx({ c }) {
 function TextProps({ c }) {
   const up = useEditor((x) => x.updateProps), p = c.props, set = (k) => (v) => up(c.id, { [k]: v });
   const tog = (k, l) => <button className={`btn sm ${p[k] ? 'primary' : ''}`} onClick={() => set(k)(!p[k])}>{l}</button>;
-  return (<>
-    <textarea rows={3} value={p.text} onChange={(e) => set('text')(e.target.value)} />
-    <label className="prop"><span>Font</span><select value={p.fontFamily} onChange={(e) => set('fontFamily')(e.target.value)}>{FONTS.map(([n, v]) => <option key={n} value={v}>{n}</option>)}</select></label>
-    <Slider label="Size" value={p.fontSize} min={2} max={25} step={0.5} onChange={set('fontSize')} />
-    <div className="row"><input type="color" title="Text color" value={p.color} onChange={(e) => set('color')(e.target.value)} />{tog('bold', 'B')}{tog('italic', 'I')}{tog('underline', 'U')}{tog('shadow', 'Shadow')}</div>
-    <div className="row"><label className="muted">Background <input type="color" value={p.bg || '#000000'} onChange={(e) => set('bg')(e.target.value)} /></label><button className="btn sm" onClick={() => set('bg')('')}>None</button></div>
-    <label className="prop"><span>Align</span><select value={p.align} onChange={(e) => set('align')(e.target.value)}>{['left', 'center', 'right'].map((a) => <option key={a}>{a}</option>)}</select></label>
-    <Slider label="Letter spacing" value={p.letterSpacing} min={-2} max={20} onChange={set('letterSpacing')} />
-    <Slider label="Line height" value={p.lineHeight} min={0.8} max={2.5} step={0.1} onChange={set('lineHeight')} />
-    <div className="row"><Slider label="Border" value={p.stroke} min={0} max={8} step={0.5} onChange={set('stroke')} /><input type="color" value={p.strokeColor} onChange={(e) => set('strokeColor')(e.target.value)} /></div>
-  </>);
+
+  const EMOJIS = ['🔥', '⚡', '❤️', '🙏', '👑', '🚩', '🔔', '😱', '✨', '🎬', '💬', '🔴'];
+  const SWATCHES = ['#ffffff', '#ffd700', '#00f0ff', '#ff0055', '#ffe600', '#22c55e', '#a855f7', '#000000'];
+  const STYLES = [
+    ['none', 'Standard'],
+    ['neon', '⚡ Neon'],
+    ['gold', '👑 Gold'],
+    ['3d', '🧱 3D Block'],
+    ['hook', '💬 Hook'],
+    ['subtitles', '📺 Subtitle'],
+    ['fire', '🔥 Fire'],
+    ['glitch', '👾 Glitch'],
+  ];
+
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      {/* 1. Text Content */}
+      <div className="prop-card">
+        <div className="prop-card-header">✏️ Text Content / शब्द</div>
+        <textarea
+          rows={3}
+          value={p.text || ''}
+          placeholder="Type in Hindi or English (उदा. नमस्ते या Hello)"
+          onChange={(e) => set('text')(e.target.value)}
+          style={{ width: '100%', fontSize: 14 }}
+        />
+        <div className="emoji-toolbar">
+          {EMOJIS.map((em) => (
+            <button key={em} className="emoji-btn" onClick={() => set('text')((p.text || '') + em)}>
+              {em}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. Text Effects (1-Click) */}
+      <div className="prop-card">
+        <div className="prop-card-header">✨ Text FX & Styles (1-Click)</div>
+        <div className="style-grid">
+          {STYLES.map(([id, label]) => (
+            <button
+              key={id}
+              className={`style-badge ${(p.stylePreset || 'none') === id ? 'on' : ''}`}
+              onClick={() => set('stylePreset')(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Typography */}
+      <div className="prop-card">
+        <div className="prop-card-header">🔤 Font & Typography</div>
+        <label className="prop">
+          <span>Font Style</span>
+          <select value={p.fontFamily} onChange={(e) => set('fontFamily')(e.target.value)}>
+            {FONTS.map(([n, v]) => <option key={n} value={v}>{n}</option>)}
+          </select>
+        </label>
+        <Slider label="Font Size" value={p.fontSize} min={2} max={30} step={0.5} onChange={set('fontSize')} />
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div className="row" style={{ gap: 4 }}>
+            {tog('bold', 'B')}
+            {tog('italic', 'I')}
+            {tog('underline', 'U')}
+            {tog('shadow', '🌑 Drop')}
+          </div>
+          <div className="seg">
+            {['left', 'center', 'right'].map((a) => (
+              <button key={a} className={(p.align || 'center') === a ? 'on' : ''} onClick={() => set('align')(a)}>
+                {a === 'left' ? '⬅' : a === 'center' ? '⬌' : '➡'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Color & Glow */}
+      <div className="prop-card">
+        <div className="prop-card-header">🎨 Color, Glow & Outline</div>
+        <div className="row">
+          <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            Color: <input type="color" value={p.color || '#ffffff'} onChange={(e) => set('color')(e.target.value)} />
+          </label>
+          <div className="swatches">
+            {SWATCHES.map((sw) => (
+              <div key={sw} className="swatch" style={{ background: sw }} onClick={() => set('color')(sw)} />
+            ))}
+          </div>
+        </div>
+
+        <div className="row" style={{ alignItems: 'flex-end', marginTop: 4 }}>
+          <div style={{ flex: 1 }}>
+            <Slider label="Glow (चमक)" value={p.glow || 0} min={0} max={30} step={1} onChange={set('glow')} />
+          </div>
+          <input type="color" title="Glow color" value={p.glowColor || '#00f0ff'} onChange={(e) => set('glowColor')(e.target.value)} />
+        </div>
+
+        <div className="row" style={{ alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <Slider label="Outline / Stroke" value={p.stroke || 0} min={0} max={8} step={0.5} onChange={set('stroke')} />
+          </div>
+          <input type="color" title="Stroke color" value={p.strokeColor || '#000000'} onChange={(e) => set('strokeColor')(e.target.value)} />
+        </div>
+
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            Background Box: <input type="color" value={p.bg || '#000000'} onChange={(e) => set('bg')(e.target.value)} />
+          </label>
+          <button className="btn sm" onClick={() => set('bg')('')}>No Box</button>
+        </div>
+      </div>
+
+      {/* 5. Animation */}
+      <div className="prop-card">
+        <div className="prop-card-header">🎬 Text Animation / इफ़ेक्ट</div>
+        <label className="prop">
+          <span>Animation Effect</span>
+          <select value={p.anim || 'none'} onChange={(e) => set('anim')(e.target.value)}>
+            {[
+              ['none', 'None (स्थिर)'],
+              ['typewriter', 'Typewriter (टाइपराइटर)'],
+              ['fade', 'Smooth Fade (धीरे-धीरे आना)'],
+              ['slide', 'Slide Left (बायें से आना)'],
+              ['slideRight', 'Slide Right (दायें से आना)'],
+              ['zoom', 'Zoom Pop (उछल कर आना)'],
+              ['bounce', 'Bounce In (कूदता हुआ)'],
+              ['blur', 'Cinematic Blur In'],
+              ['pulse', 'Continuous Pulse (धड़कना)'],
+              ['drop', 'Drop from Top (ऊपर से गिरना)'],
+            ].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </label>
+        <Slider label="Letter Spacing" value={p.letterSpacing || 0} min={-2} max={20} onChange={set('letterSpacing')} />
+        <Slider label="Line Height" value={p.lineHeight || 1.2} min={0.8} max={2.5} step={0.1} onChange={set('lineHeight')} />
+      </div>
+    </div>
+  );
 }
 function StickerProps({ c }) {
   const up = useEditor((x) => x.updateProps);

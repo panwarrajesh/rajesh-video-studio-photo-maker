@@ -186,7 +186,7 @@ export function MobileToolbar({ mobile, openLeft, openProps, openMini }) {
       {B('trash', 'Delete', () => removeClip(sel.id), { title: 'Delete clip', danger: true })}
     </> : <>
       {B('edit', 'Edit', target)}
-      {B('music', 'Audio', () => openLeft('audio'))}{B('type', 'Text', () => openLeft('text'))}{B('sparkles', 'Effects', () => openLeft('effects'))}
+      {B('music', 'Audio', () => openLeft('audio'))}{B('type', 'Text', () => openLeft('text'))}{B('mic', 'Captions', () => openLeft('captions'))}{B('sparkles', 'Effects', () => openLeft('effects'))}
       {B('image', 'Overlay', () => openLeft('overlay'))}{B('smile', 'Stickers', () => openLeft('stickers'))}
       {B('filter', 'Filters', () => { if (target()) openMini('filter'); })}{B('sun', 'Adjust', () => { if (target()) openMini('adjust'); })}
       {B('crop', 'Ratio', () => openMini('ratio'))}

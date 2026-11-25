@@ -17,6 +17,23 @@ export function useAutosave(projectId, ready) {
     if (!ready || busy.current || same(snap, saved.current)) return;
     busy.current = true; mark('saving');
     try { localStorage.setItem(KEY(projectId), JSON.stringify({ at: new Date().toISOString(), ...snap })); } catch { /* storage blocked/full */ }
+    if (String(projectId).startsWith('local-')) {
+      saved.current = snap;
+      mark('saved');
+      try {
+        const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+        const item = local.find((x) => x.id === projectId);
+        if (item) {
+          item.updatedAt = new Date().toISOString();
+          item.clips = snap.clips;
+          item.tracks = snap.tracks;
+          item.markers = snap.markers;
+          localStorage.setItem('rvs_local_projects', JSON.stringify(local));
+        }
+      } catch {}
+      busy.current = false;
+      return;
+    }
     try {
       await api(`/projects/${projectId}/timeline`, { method: 'PUT', body: snap });
       saved.current = snap;

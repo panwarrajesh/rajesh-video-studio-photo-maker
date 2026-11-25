@@ -185,10 +185,18 @@ export function MobileToolbar({ mobile, openLeft, openProps, openMini }) {
       {B('copy', 'Duplicate', duplicate, { title: 'Duplicate clip' })}
       {B('trash', 'Delete', () => removeClip(sel.id), { title: 'Delete clip', danger: true })}
     </> : <>
-      {B('edit', 'Edit', target)}
-      {B('music', 'Audio', () => openLeft('audio'))}{B('type', 'Text', () => openLeft('text'))}{B('mic', 'Captions', () => openLeft('captions'))}{B('sparkles', 'Effects', () => openLeft('effects'))}
-      {B('image', 'Overlay', () => openLeft('overlay'))}{B('smile', 'Stickers', () => openLeft('stickers'))}
-      {B('filter', 'Filters', () => { if (target()) openMini('filter'); })}{B('sun', 'Adjust', () => { if (target()) openMini('adjust'); })}
+      <button key="add" className="primary" onClick={() => openLeft('media')} style={{ color: '#34d399', fontWeight: 800 }}>
+        <Icon name="plus" size={21} />
+        <span>+ Photos</span>
+      </button>
+      {B('music', 'Beat DAW', () => openLeft('beatmaker'))}
+      {B('mic', 'Voiceover', () => openLeft('voiceover'))}
+      {B('type', 'Captions', () => openLeft('captions'))}
+      {B('type', 'Hindi Text', () => openLeft('text'))}
+      {B('filter', 'Looks', () => openLeft('looks'))}
+      {B('sparkles', 'AI Lab', () => openLeft('ailab'))}
+      {B('smile', 'Stickers', () => openLeft('stickers'))}
+      {B('sparkles', 'Effects', () => openLeft('effects'))}
       {B('crop', 'Ratio', () => openMini('ratio'))}
     </>}</nav>
   );

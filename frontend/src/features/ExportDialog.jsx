@@ -17,7 +17,16 @@ export default function ExportDialog({ project, onClose }) {
     const clips = all.filter((c) => !tracks[c.track]?.hidden && !(c.track === 'AUDIO' && tracks.AUDIO.muted)).map((c) => (c.track === 'VIDEO' && tracks.VIDEO.muted ? { ...c, props: { ...c.props, muted: true } } : c));
     if (!clips.length) return setErr('Add some clips to the timeline first.');
     try {
-      const { id } = await api(`/projects/${project.id}/export`, { method: 'POST', body: { settings: { ...s, fps: Number(s.fps) }, clips } });
+      let exportProjectId = project.id;
+      if (String(project.id).startsWith('local-')) {
+        try {
+          const syncProj = await api('/projects', { method: 'POST', body: { name: project.name, width: project.width, height: project.height, fps: Number(s.fps) } });
+          exportProjectId = syncProj.id;
+        } catch {
+          throw new Error('Cloud render ke liye server awake hona zaroori hai. Kripya thodi der me dobara try karein.');
+        }
+      }
+      const { id } = await api(`/projects/${exportProjectId}/export`, { method: 'POST', body: { settings: { ...s, fps: Number(s.fps) }, clips } });
       setJob({ id, status: 'QUEUED', progress: 0, warnings: [] });
       timer.current = setInterval(async () => {
         try { const j = await api(`/exports/${id}`); setJob(j); if (['DONE', 'FAILED'].includes(j.status)) clearInterval(timer.current); }

@@ -77,12 +77,12 @@ export async function api(path, { method = 'GET', body, retry = true, attempts =
   } catch (error) {
     console.warn(`API call failed to ${path} (attempt ${attempts + 1}):`, error);
     // If network error (e.g. Render free tier waking up), retry automatically up to 2 times
-    if (attempts < 2 && (method === 'GET' || path === '/auth/me')) {
-      await new Promise((r) => setTimeout(r, 2000));
+    if (attempts < 2 && (method === 'GET' || path.startsWith('/auth') || path.startsWith('/projects'))) {
+      await new Promise((r) => setTimeout(r, 1500));
       return api(path, { method, body, retry, attempts: attempts + 1 });
     }
     console.error('API NETWORK ERROR:', error);
-    throw new Error('Server wake up ho raha hai ya internet check karein. Kripya Retry dabayein.');
+    throw new Error('Server wake up ho raha hai ya internet check karein. Offline mode me aap direct video edit kar sakte hain.');
   }
   if (res.status === 401 && retry && (await refresh())) return api(path, { method, body, retry: false });
   const data = await res.json().catch(() => ({}));
@@ -93,7 +93,6 @@ export async function api(path, { method = 'GET', body, retry = true, attempts =
 export const fileUrl = (u) => (/^https?:/.test(u) ? u : BASE.replace(/\/api$/, '') + u);
 
 export async function upload(path, form) {
-  await api('/auth/me');
   let res;
   try {
     const accessToken = getAccess();

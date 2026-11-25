@@ -14,8 +14,18 @@ const RES = { '9:16': [1080, 1920], '16:9': [1920, 1080], '1:1': [1080, 1080], '
 
 export default function Dashboard() {
   const { user, logout } = useAuth(); const nav = useNavigate();
-  const [list, setList] = useState([]); const [q, setQ] = useState(''); const [sort, setSort] = useState('recent');
-  const [err, setErr] = useState(''); const [loading, setLoading] = useState(true);
+  const [list, setList] = useState(() => {
+    try {
+      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+      const cached = JSON.parse(localStorage.getItem('rvs_cached_projects') || '[]');
+      return [...local, ...cached];
+    } catch {
+      return [];
+    }
+  });
+  const [q, setQ] = useState(''); const [sort, setSort] = useState('recent');
+  const [err, setErr] = useState(''); const [loading, setLoading] = useState(false);
+  const [serverWaking, setServerWaking] = useState(false);
   const [modal, setModal] = useState(false); const [menu, setMenu] = useState(null); const [pm, setPm] = useState(false);
   const [busy, setBusy] = useState(null); const fileRef = useRef();
   const [f, setF] = useState({ name: 'Untitled project', ratio: '9:16', fps: 30 });
@@ -23,31 +33,130 @@ export default function Dashboard() {
   const [aiOpen, setAiOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
-  const load = useCallback(() => api(`/projects?q=${encodeURIComponent(q)}`).then((d) => { setList(d); setErr(''); }).catch((e) => setErr(e.message)).finally(() => setLoading(false)), [q]);
+  const load = useCallback(() => {
+    setLoading(true);
+    api(`/projects?q=${encodeURIComponent(q)}`)
+      .then((d) => {
+        const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+        const combined = [...local, ...d];
+        setList(combined);
+        try { localStorage.setItem('rvs_cached_projects', JSON.stringify(d)); } catch {}
+        setErr('');
+        setServerWaking(false);
+      })
+      .catch((e) => {
+        console.warn('Projects API unavailable (server sleeping or offline):', e);
+        const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+        const cached = JSON.parse(localStorage.getItem('rvs_cached_projects') || '[]');
+        const combined = [...local, ...cached];
+        if (combined.length) {
+          setList(combined);
+          setServerWaking(true);
+          setErr('');
+        } else {
+          setServerWaking(true);
+          setErr('⚡ Cloud server start ho raha hai (Render free tier). Offline mode active hai — aap bina ruke direct "New video" bana sakte hain!');
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [q]);
+
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
   const shown = useMemo(() => (sort === 'name' ? [...list].sort((a, b) => a.name.localeCompare(b.name)) : list), [list, sort]);
   const act = (fn) => async () => { setMenu(null); try { setErr(''); await fn(); load(); } catch (e) { setErr(e.message); } };
+
   async function create(e) {
     e.preventDefault();
-    try { const [width, height] = RES[f.ratio]; const p = await api('/projects', { method: 'POST', body: { name: f.name, width, height, fps: Number(f.fps) } }); nav(`/editor/${p.id}`); }
-    catch (x) { setErr(x.message); setModal(false); }
+    const [width, height] = RES[f.ratio];
+    let p = null;
+    try {
+      p = await api('/projects', { method: 'POST', body: { name: f.name, width, height, fps: Number(f.fps) } });
+    } catch (x) {
+      console.warn('Server offline/waking, creating offline local project:', x);
+      p = {
+        id: `local-${Date.now()}`,
+        name: f.name || 'Offline Video',
+        width,
+        height,
+        fps: Number(f.fps),
+        duration: 5,
+        updatedAt: new Date().toISOString(),
+        isLocal: true,
+      };
+      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+      local.unshift(p);
+      localStorage.setItem('rvs_local_projects', JSON.stringify(local));
+    }
+    nav(`/editor/${p.id}`);
   }
-  // "New video": pick photos/videos from the gallery -> project is created -> media uploaded -> editor opens with the clips on the timeline
+
+  // "New video": pick photos/videos from the gallery -> project is created -> media uploaded or prepared locally -> editor opens with clips on timeline
   async function startFromMedia(files) {
     files = files.filter((f) => /^(image|video)\//.test(f.type)); if (!files.length) return;
     setErr(''); setBusy({ msg: 'Preparing…', pct: 5 });
     try {
       const first = await fileThumb(files[0]), r = first ? first.w / first.h : 0.5625;
       const ratio = r > 1.2 ? '16:9' : r < 0.7 ? '9:16' : r < 0.9 ? '4:5' : '1:1', [width, height] = RES[ratio];
-      const p = await api('/projects', { method: 'POST', body: { name: `Project ${new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}`, width, height, fps: 30 } });
-      const ids = [], failed = [];
-      for (let i = 0; i < files.length; i++) {
-        setBusy({ msg: `Uploading ${i + 1} of ${files.length}…`, pct: 10 + Math.round((i / files.length) * 85) });
-        try { const fd = new FormData(); fd.append('projectId', p.id); const d = await getDuration(files[i]); if (d) fd.append('duration', d); fd.append('file', files[i]); ids.push((await upload('/media/upload', fd)).id); }
-        catch (e) { failed.push(`${files[i].name}: ${e.message}`); }
+      let p = null;
+      try {
+        p = await api('/projects', { method: 'POST', body: { name: `Project ${new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}`, width, height, fps: 30 } });
+      } catch (x) {
+        p = {
+          id: `local-${Date.now()}`,
+          name: `Project ${new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}`,
+          width,
+          height,
+          fps: 30,
+          duration: 5,
+          updatedAt: new Date().toISOString(),
+          isLocal: true,
+        };
+        const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+        local.unshift(p);
+        localStorage.setItem('rvs_local_projects', JSON.stringify(local));
       }
-      if (first) await api(`/projects/${p.id}`, { method: 'PUT', body: { thumbnailUrl: first.thumb } }).catch(() => {});
-      if (!ids.length) { setErr(failed[0] || 'Upload failed'); load(); return; }
+
+      const ids = [];
+      const localMediaList = [];
+      for (let i = 0; i < files.length; i++) {
+        setBusy({ msg: `Loading ${i + 1} of ${files.length}…`, pct: 10 + Math.round((i / files.length) * 85) });
+        const curFile = files[i];
+        let m = null;
+        if (!p.isLocal) {
+          try {
+            const fd = new FormData(); fd.append('projectId', p.id);
+            const d = await getDuration(curFile); if (d) fd.append('duration', d);
+            fd.append('file', curFile);
+            m = await upload('/media/upload', fd);
+            ids.push(m.id);
+          } catch (e) {
+            console.warn('Cloud upload failed, using local fallback:', e);
+          }
+        }
+        if (!m) {
+          const d = await getDuration(curFile);
+          m = {
+            id: `loc-m-${Date.now()}-${i}`,
+            projectId: p.id,
+            name: curFile.name,
+            type: curFile.type.startsWith('video/') ? 'video' : curFile.type.startsWith('image/') ? 'image' : 'audio',
+            url: URL.createObjectURL(curFile),
+            duration: d || 5,
+            size: curFile.size,
+          };
+          ids.push(m.id);
+          localMediaList.push(m);
+        }
+      }
+
+      if (localMediaList.length) {
+        try {
+          const existing = JSON.parse(localStorage.getItem(`rvs_media_${p.id}`) || '[]');
+          localStorage.setItem(`rvs_media_${p.id}`, JSON.stringify([...localMediaList, ...existing]));
+        } catch {}
+      }
+
+      if (first && !p.isLocal) await api(`/projects/${p.id}`, { method: 'PUT', body: { thumbnailUrl: first.thumb } }).catch(() => {});
       nav(`/editor/${p.id}?add=${ids.join(',')}`);
     } catch (e) { setErr(e.message); } finally { setBusy(null); }
   }
@@ -194,18 +303,58 @@ export default function Dashboard() {
         </div>
 
         <label className="search"><Icon name="search" size={18} /><input placeholder="Search projects" value={q} onChange={(e) => setQ(e.target.value)} /></label>
-        {err && <div className="errbox"><span>{err}</span><button className="btn sm" onClick={load}>Retry</button></div>}
+        {serverWaking && (
+          <div style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.25))', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: '12px', padding: '10px 14px', margin: '10px 0 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '13px', color: '#fef08a' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>⚡</span>
+              <span><b>Cloud Server wake ho raha hai</b> (Render free tier). Offline mode active — aap direct video bana sakte hain!</span>
+            </div>
+            <button className="btn sm" onClick={load} style={{ background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}>Check</button>
+          </div>
+        )}
+        {err && !serverWaking && <div className="errbox"><span>{err}</span><button className="btn sm" onClick={load}>Retry</button></div>}
         {loading && !list.length && <div className="plist">{[0, 1, 2].map((i) => <div key={i} className="prow skel" />)}</div>}
         {!loading && !shown.length && !err && <div className="empty2"><i><Icon name="film" size={30} /></i><b>No projects yet</b><small className="muted">Tap “New video” to start your first project.</small></div>}
         <div className="plist">{shown.map((p) => (
           <div key={p.id} className="prow" onClick={() => nav(`/editor/${p.id}`)}>
             <div className="pthumb">{p.thumbnailUrl ? <img src={p.thumbnailUrl} alt="" /> : <Icon name="film" size={22} />}</div>
-            <div className="pinfo"><b>{p.name}</b><small>{new Date(p.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })} · {p.width}×{p.height} · {Math.round(p.duration)}s</small></div>
+            <div className="pinfo"><b>{p.name} {p.isLocal && <span style={{ fontSize: '10px', background: '#3b82f633', color: '#60a5fa', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px' }}>OFFLINE</span>}</b><small>{new Date(p.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })} · {p.width}×{p.height} · {Math.round(p.duration || 5)}s</small></div>
             <button className="ib" title="More" onClick={(e) => { e.stopPropagation(); setMenu(menu === p.id ? null : p.id); }}><Icon name="dots" /></button>
             {menu === p.id && <div className="pmenu" onClick={(e) => e.stopPropagation()}>
-              <button onClick={act(async () => { const n = prompt('Rename project', p.name); if (n) await api(`/projects/${p.id}`, { method: 'PUT', body: { name: n } }); })}>Rename</button>
-              <button onClick={act(() => api(`/projects/${p.id}/duplicate`, { method: 'POST' }))}>Duplicate</button>
-              <button className="danger" onClick={act(async () => { if (confirm('Delete this project?')) await api(`/projects/${p.id}`, { method: 'DELETE' }); })}>Delete</button></div>}
+              <button onClick={act(async () => {
+                const n = prompt('Rename project', p.name);
+                if (!n) return;
+                if (p.isLocal || String(p.id).startsWith('local-')) {
+                  const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+                  const item = local.find(x => x.id === p.id);
+                  if (item) { item.name = n; localStorage.setItem('rvs_local_projects', JSON.stringify(local)); }
+                } else {
+                  await api(`/projects/${p.id}`, { method: 'PUT', body: { name: n } });
+                }
+              })}>Rename</button>
+              <button onClick={act(async () => {
+                if (p.isLocal || String(p.id).startsWith('local-')) {
+                  const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+                  const clone = { ...p, id: `local-${Date.now()}`, name: `${p.name} (Copy)`, updatedAt: new Date().toISOString() };
+                  local.unshift(clone);
+                  localStorage.setItem('rvs_local_projects', JSON.stringify(local));
+                } else {
+                  await api(`/projects/${p.id}/duplicate`, { method: 'POST' });
+                }
+              })}>Duplicate</button>
+              <button className="danger" onClick={act(async () => {
+                if (confirm('Delete this project?')) {
+                  if (p.isLocal || String(p.id).startsWith('local-')) {
+                    const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+                    const filtered = local.filter(x => x.id !== p.id);
+                    localStorage.setItem('rvs_local_projects', JSON.stringify(filtered));
+                    localStorage.removeItem(`rvs_media_${p.id}`);
+                    localStorage.removeItem(`rvs_backup_${p.id}`);
+                  } else {
+                    await api(`/projects/${p.id}`, { method: 'DELETE' });
+                  }
+                }
+              })}>Delete</button></div>}
           </div>))}</div>
       </main>
 

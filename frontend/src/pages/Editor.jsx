@@ -5,6 +5,10 @@ import { useEditor, totalDuration, TEXT_DEFAULTS, evalProp, evalProps, kfTimes, 
 import { useShortcuts } from '../hooks/useShortcuts.js';
 import ExportDialog from '../features/ExportDialog.jsx';
 import AutoCaptions from '../features/AutoCaptions.jsx';
+import EditorBeatMaker from '../features/EditorBeatMaker.jsx';
+import EditorVoiceover from '../features/EditorVoiceover.jsx';
+import EditorAiStudio from '../features/EditorAiStudio.jsx';
+import EditorLooks from '../features/EditorLooks.jsx';
 import { useAutosave } from '../hooks/useAutosave.js';
 import { Icon, Logo } from '../components/Icon.jsx';
 import { MobileTimeline, MobileTransport, MobileToolbar, MiniSheet } from '../editor/Mobile.jsx';
@@ -41,15 +45,42 @@ function sync(el, clip, t, playing, muted) {
 function MediaPanel({ projectId, setErr, onAdded, only }) {
   const { media, setMedia, addClip, removeByMedia } = useEditor();
   const [q, setQ] = useState(''); const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef(null);
+
   async function send(files) {
+    files = [...files].filter((f) => /^(image|video|audio)\//.test(f.type) || /\.(mp4|webm|mov|mp3|wav|png|jpg|jpeg|webp)$/i.test(f.name));
+    if (!files.length) return;
     setBusy(true); setErr('');
     for (const f of files) {
-      try {
-        const fd = new FormData(); fd.append('projectId', projectId);
-        const d = await getDuration(f); if (d) fd.append('duration', d);
-        fd.append('file', f);
-        const m = await upload('/media/upload', fd); setMedia([m, ...useEditor.getState().media]);
-      } catch (e) { setErr(`${f.name}: ${e.message}`); }
+      let m = null;
+      if (!String(projectId).startsWith('local-')) {
+        try {
+          const fd = new FormData(); fd.append('projectId', projectId);
+          const d = await getDuration(f); if (d) fd.append('duration', d);
+          fd.append('file', f);
+          m = await upload('/media/upload', fd);
+        } catch (e) {
+          console.warn('Upload to server failed, falling back to instant device media:', e);
+        }
+      }
+      if (!m) {
+        const d = await getDuration(f);
+        m = {
+          id: `loc-m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          projectId,
+          name: f.name,
+          type: f.type.startsWith('video/') ? 'video' : f.type.startsWith('image/') ? 'image' : 'audio',
+          url: URL.createObjectURL(f),
+          duration: d || (f.type.startsWith('image/') ? 5 : 5),
+          size: f.size
+        };
+      }
+      const updatedMedia = [m, ...useEditor.getState().media];
+      setMedia(updatedMedia);
+      try { localStorage.setItem(`rvs_media_${projectId}`, JSON.stringify(updatedMedia)); } catch {}
+      // AUTOMATICALLY add clip straight to timeline!
+      addClip(m);
+      onAdded?.();
     }
     setBusy(false);
   }
@@ -57,19 +88,47 @@ function MediaPanel({ projectId, setErr, onAdded, only }) {
   const list = media.filter((m) => (!only || m.type === only) && m.name.toLowerCase().includes(q.toLowerCase()));
   return (
     <aside className="tabbody" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); send([...e.dataTransfer.files]); }}>
-      
-      <label className="btn primary sm">{busy ? 'Uploading…' : only === 'AUDIO' ? '+ Upload audio' : '+ Upload (or drop files)'}
-        <input hidden type="file" multiple accept=".mp4,.webm,.mov,.mp3,.wav,.png,.jpg,.jpeg,.webp" onChange={(e) => { send([...e.target.files]); e.target.value = ''; }} /></label>
-      <input placeholder="Search media…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <button
+        type="button"
+        className="btn primary"
+        style={{
+          width: '100%',
+          padding: '12px 14px',
+          fontSize: '13px',
+          fontWeight: 800,
+          background: 'linear-gradient(135deg, #10b981, #059669)',
+          border: 'none',
+          borderRadius: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+        }}
+        onClick={() => fileInputRef.current?.click()}
+        disabled={busy}
+      >
+        <span>📸 {busy ? 'Uploading & Adding to Video…' : '+ 1-Tap Pick Photo / Video from Phone'}</span>
+      </button>
+      <input
+        ref={fileInputRef}
+        hidden
+        type="file"
+        multiple
+        accept="video/*,image/*,audio/*"
+        onChange={(e) => { send([...e.target.files]); e.target.value = ''; }}
+      />
+      <input placeholder="Search added media…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginTop: '8px' }} />
       <div className="medialist">{list.map((m) => (
         <div key={m.id} className="mitem"><b title={m.name}>{m.name}</b>
           <small className="muted">{m.type} · {size(m.size)}{m.duration ? ` · ${m.duration.toFixed(1)}s` : ''}</small>
           <div className="row">
-            <button className="btn sm" onClick={() => { addClip(m); onAdded?.(); }}>Add</button>
+            <button className="btn sm" onClick={() => { addClip(m); onAdded?.(); }}>Add to track</button>
             <button className="btn sm" onClick={wrap(async () => { const n = prompt('Rename', m.name); if (n) { const u = await api(`/media/${m.id}`, { method: 'PUT', body: { name: n } }); setMedia(media.map((x) => (x.id === m.id ? u : x))); } })}>Rename</button>
             <button className="btn sm danger" onClick={wrap(async () => { if (!confirm('Delete this media?')) return; await api(`/media/${m.id}`, { method: 'DELETE' }); removeByMedia(m.id); setMedia(media.filter((x) => x.id !== m.id)); })}>Delete</button>
           </div></div>))}
-        {!list.length && <small className="muted">No media yet.</small>}</div>
+        {!list.length && <small className="muted">Tap green button above to pick photos or videos from phone.</small>}</div>
     </aside>
   );
 }
@@ -269,7 +328,17 @@ function clipStyle(c, t) {
   return { ...st, filter: f, opacity: st.opacity * (x.opacity ?? 1), clipPath: x.clipPath || st.clipPath, transform: `${x.transform || ''} ${st.transform}` };
 }
 
-const TABS = [['media', 'film', 'Media'], ['text', 'type', 'Text'], ['captions', 'mic', 'Captions'], ['audio', 'music', 'Audio'], ['stickers', 'smile', 'Stickers'], ['effects', 'sparkles', 'Effects']];
+const TABS = [
+  ['media', 'film', '📸 Media'],
+  ['beatmaker', 'music', '🎵 Beat DAW'],
+  ['voiceover', 'mic', '🎙️ Voiceover'],
+  ['captions', 'type', '🎤 Captions'],
+  ['text', 'type', '🇮🇳 Hindi Text'],
+  ['looks', 'filter', '🎨 Looks'],
+  ['ailab', 'sparkles', '🤖 AI Lab'],
+  ['stickers', 'smile', 'Stickers'],
+  ['effects', 'sparkles', 'Effects'],
+];
 const TEXT_PRESETS = [
   {
     category: '🇮🇳 हिंदी टाइटल्स',
@@ -393,7 +462,11 @@ function LeftPanel({ tab, setTab, projectId, setErr, onAdded }) {
       <div className="tabs">{TABS.map(([k, ic, l]) => <button key={k} className={`tab ${tab === k ? 'on' : ''}`} onClick={() => setTab(k)}><Icon name={ic} size={18} /><span>{l}</span></button>)}</div>
       <div className="tabcontent">
         {tab === 'media' && <MediaPanel projectId={projectId} setErr={setErr} onAdded={onAdded} />}
+        {tab === 'beatmaker' && <EditorBeatMaker projectId={projectId} onClose={() => setTab('media')} />}
+        {tab === 'voiceover' && <EditorVoiceover projectId={projectId} onClose={() => setTab('media')} />}
         {tab === 'captions' && <AutoCaptions projectId={projectId} onClose={() => setTab('media')} />}
+        {tab === 'looks' && <EditorLooks />}
+        {tab === 'ailab' && <EditorAiStudio projectId={projectId} onClose={() => setTab('media')} />}
         {tab === 'audio' && <MediaPanel only="AUDIO" projectId={projectId} setErr={setErr} onAdded={onAdded} />}
         {tab === 'overlay' && <MediaPanel only="IMAGE" projectId={projectId} setErr={setErr} onAdded={onAdded} />}
         {tab === 'text' && (
@@ -765,6 +838,18 @@ export default function Editor() {
   useEffect(() => {
     useEditor.setState({ clips: [], past: [], future: [], tracks: DEFAULT_TRACKS(), markers: [], playhead: 0, playing: false, selected: null });
     setReady(false); setRecover(null);
+
+    const isLocalProj = String(id).startsWith('local-');
+    if (isLocalProj) {
+      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+      const proj = local.find((x) => x.id === id) || { id, name: 'Offline Project', width: 1080, height: 1920, fps: 30, duration: 5, updatedAt: new Date().toISOString(), isLocal: true };
+      const savedMedia = JSON.parse(localStorage.getItem(`rvs_media_${id}`) || '[]');
+      setP(proj); setMedia(savedMedia);
+      useEditor.setState({ clips: loadClips(proj), tracks: loadTracks(proj), markers: proj.markers || [], past: [], future: [] });
+      setReady(true);
+      return;
+    }
+
     Promise.all([api(`/projects/${id}`), api(`/media?projectId=${id}`)]).then(([proj, m]) => {
       setP(proj); setMedia(m);
       useEditor.setState({ clips: loadClips(proj), tracks: loadTracks(proj), markers: proj.markers || [], past: [], future: [] });
@@ -773,7 +858,17 @@ export default function Editor() {
         if (b?.clips && new Date(b.at) > new Date(proj.updatedAt)) setRecover(b);
       } catch { /* ignore */ }
       setReady(true);
-    }).catch((e) => setErr(e.message));
+    }).catch((e) => {
+      console.warn('Could not load project from server, attempting offline restore:', e);
+      const cached = JSON.parse(localStorage.getItem('rvs_cached_projects') || '[]');
+      const proj = cached.find((x) => x.id === id) || { id, name: 'Offline Video', width: 1080, height: 1920, fps: 30, duration: 5 };
+      const b = JSON.parse(localStorage.getItem(`rvs_backup_${id}`) || 'null');
+      const savedMedia = JSON.parse(localStorage.getItem(`rvs_media_${id}`) || '[]');
+      setP(proj); setMedia(savedMedia);
+      useEditor.setState({ clips: b?.clips || loadClips(proj), tracks: b?.tracks || loadTracks(proj), markers: b?.markers || proj.markers || [], past: [], future: [] });
+      setReady(true);
+      setNote('Offline mode: Local project backup loaded.');
+    });
   }, [id, setMedia]);
 
   useEffect(() => {          // playback clock
@@ -790,7 +885,18 @@ export default function Editor() {
   }, [playing, seek, setPlaying]);
 
   const { status, saveNow } = useAutosave(id, ready);
-  const changeRatio = async (w, h) => { try { await api(`/projects/${id}`, { method: 'PUT', body: { width: w, height: h } }); setP((x) => ({ ...x, width: w, height: h })); } catch (e) { setErr(e.message); } };
+  const changeRatio = async (w, h) => {
+    if (String(id).startsWith('local-')) {
+      setP((x) => ({ ...x, width: w, height: h }));
+      try {
+        const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+        const item = local.find((x) => x.id === id);
+        if (item) { item.width = w; item.height = h; localStorage.setItem('rvs_local_projects', JSON.stringify(local)); }
+      } catch {}
+      return;
+    }
+    try { await api(`/projects/${id}`, { method: 'PUT', body: { width: w, height: h } }); setP((x) => ({ ...x, width: w, height: h })); } catch (e) { setErr(e.message); }
+  };
   const openLeft = (tb) => { setMini(null); setTab(tb); setSheet('left'); };
   const openMini = (k) => { setSheet(null); setMini(k); };
   const ratioLabel = (w, h) => { const r = w / h, hit = [['9:16', 9 / 16], ['16:9', 16 / 9], ['1:1', 1], ['4:5', 0.8]].find(([, v]) => Math.abs(r - v) < 0.03); return hit ? hit[0] : `${w}×${h}`; };

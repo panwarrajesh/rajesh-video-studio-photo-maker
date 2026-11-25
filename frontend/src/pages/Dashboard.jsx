@@ -5,10 +5,12 @@ import { getDuration, fileThumb } from '../utils/media.js';
 import { useAuth } from '../store/auth.js';
 import { Icon, Logo } from '../components/Icon.jsx';
 import InstallBanner from '../components/InstallBanner.jsx';
+import ThemeToggle from '../components/ThemeToggle.jsx';
+import GlobalCreativeSearch, { STUDIOS_CATALOG } from '../components/GlobalCreativeSearch.jsx';
+import AiAssistantModal from '../components/AiAssistantModal.jsx';
+import NotificationsModal from '../components/NotificationsModal.jsx';
 
 const RES = { '9:16': [1080, 1920], '16:9': [1920, 1080], '1:1': [1080, 1080], '4:5': [1080, 1350] };
-const TOOLS = [['cinematic', 'sparkles', 'Auto Cinematic', '#a78bfa'], ['audio', 'music', 'Beat Sync', '#34d399'], ['audio', 'mic', 'Voice-over', '#f472b6'], ['text', 'type', 'Hindi Text', '#fbbf24'],
-  ['bg', 'image', 'Backgrounds', '#60a5fa'], ['bg', 'layers', 'Green Screen', '#4ade80'], ['bg', 'sparkles', 'Particles', '#fb7185'], ['look', 'sliders', 'Filters & Look', '#22d3ee']];
 
 export default function Dashboard() {
   const { user, logout } = useAuth(); const nav = useNavigate();
@@ -17,6 +19,9 @@ export default function Dashboard() {
   const [modal, setModal] = useState(false); const [menu, setMenu] = useState(null); const [pm, setPm] = useState(false);
   const [busy, setBusy] = useState(null); const fileRef = useRef();
   const [f, setF] = useState({ name: 'Untitled project', ratio: '9:16', fps: 30 });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const load = useCallback(() => api(`/projects?q=${encodeURIComponent(q)}`).then((d) => { setList(d); setErr(''); }).catch((e) => setErr(e.message)).finally(() => setLoading(false)), [q]);
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
@@ -49,17 +54,38 @@ export default function Dashboard() {
   const first = (user?.name || 'there').split(' ')[0];
   return (
     <div className="page home" onClick={() => { setMenu(null); setPm(false); }}>
-      <header className="top"><Logo /><span className="grow" />
+      <header className="top">
+        <Logo />
+        <button
+          className="btn sm"
+          onClick={() => setSearchOpen(true)}
+          style={{ background: 'var(--s2)', border: '1px solid var(--line)', color: 'var(--mut)', borderRadius: '20px', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Icon name="search" size={14} />
+          <span style={{ fontSize: '12px' }}>Search studios & tools…</span>
+        </button>
+        <span className="grow" />
+        <button
+          className="btn sm"
+          onClick={() => setAiOpen(true)}
+          style={{ background: 'linear-gradient(135deg, #a855f722, #6366f133)', border: '1px solid #a855f766', color: '#c084fc', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <span>🤖 AI Assistant</span>
+        </button>
+        <button className="ib" title="Notifications" onClick={() => setNotifOpen(true)}>
+          <Icon name="bell" size={18} />
+        </button>
+        <ThemeToggle />
         {!isNative() && (
           <a
             href="/Rajesh-Video-Studio.apk"
             download="Rajesh-Video-Studio.apk"
             className="btn sm"
-            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', marginRight: '10px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.35))', border: '1px solid rgba(16, 185, 129, 0.6)', color: '#34d399', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', fontWeight: 600 }}
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.35))', border: '1px solid rgba(16, 185, 129, 0.6)', color: '#34d399', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', fontWeight: 600 }}
             title="Download Android App APK"
           >
             <Icon name="download" size={14} />
-            <span>Download APK</span>
+            <span>APK</span>
           </a>
         )}
         <div className="pwrap" onClick={(e) => e.stopPropagation()}>
@@ -77,20 +103,93 @@ export default function Dashboard() {
           )}
         </div>
       </header>
+
       <main className="wrap">
         <InstallBanner />
-        <h1 className="greet">Hi {first} 👋<span>What will you create today?</span></h1>
+        <h1 className="greet">Hi {first} 👋<span>Creative Studio Suite</span></h1>
+
+        {/* Quick Actions Carousel */}
+        <div className="quick-actions-bar">
+          <button className="quick-action-pill" onClick={() => fileRef.current?.click()}>
+            <i>🎬</i> New Video
+          </button>
+          <button className="quick-action-pill" onClick={() => nav('/music-studio')}>
+            <i>🎵</i> Beat Maker
+          </button>
+          <button className="quick-action-pill" onClick={() => nav('/photo-studio')}>
+            <i>📸</i> Edit Photo
+          </button>
+          <button className="quick-action-pill" onClick={() => nav('/podcast-studio')}>
+            <i>🎙️</i> Voice Record
+          </button>
+          <button className="quick-action-pill" onClick={() => nav('/ai-lab')}>
+            <i>✨</i> AI Lab
+          </button>
+          <button className="quick-action-pill" onClick={() => nav('/design-studio')}>
+            <i>🎨</i> Thumbnail Maker
+          </button>
+          <button className="quick-action-pill" onClick={() => nav('/music-academy')}>
+            <i>🎹</i> Piano Academy
+          </button>
+        </div>
+
         <div className="storage-info-pill">
-          <span>⚡ <b>Auto Storage Saver Active:</b> Ek time par 1 active video project rehta hai. Video edit karein & download karein. Nayi video start karne par purani video files auto-clean ho jati hain.</span>
+          <span>⚡ <b>Auto Storage Saver Active:</b> Single active video project policy active. Nayi video start karne par purani temporary video media auto-clean ho jati hain.</span>
         </div>
-        <div className="hero2">
-          <button className="tile t1" onClick={() => fileRef.current?.click()}><i><Icon name="plus" size={26} /></i><b>New video</b><small>Pick photos & videos</small></button>
-          <button className="tile t2" onClick={() => nav('/studio')}><i><Icon name="film" size={26} /></i><b>Photo Video Maker</b><small>Photos to cinematic video</small></button>
+
+        {/* 12 Creative Studios Section */}
+        <div className="row sechead" style={{ marginTop: '20px' }}>
+          <h2 className="grow">Creative Studios</h2>
+          <small className="muted">{STUDIOS_CATALOG.length} Workspaces</small>
         </div>
-        <button className="linkbtn" onClick={() => setModal(true)}>or start an empty project with a custom size</button>
-        <div className="tools4">{TOOLS.map(([k, ic, label, col]) => <button key={label} className="tool" style={{ '--tc': col }} onClick={() => nav(`/studio?tool=${k}`)}><i><Icon name={ic} size={22} /></i><span>{label}</span></button>)}</div>
-        <div className="row sechead"><h2 className="grow">Projects</h2>
-          <div className="seg"><button className={sort === 'recent' ? 'on' : ''} onClick={() => setSort('recent')}>Recent</button><button className={sort === 'name' ? 'on' : ''} onClick={() => setSort('name')}>A–Z</button></div></div>
+
+        <div className="studio-grid">
+          {STUDIOS_CATALOG.map((s) => (
+            <div
+              key={s.id}
+              className="studio-card"
+              onClick={() => {
+                if (s.id === 'video') {
+                  if (list.length > 0) nav(`/editor/${list[0].id}`);
+                  else setModal(true);
+                } else {
+                  nav(s.path);
+                }
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className="studio-card-icon" style={{ background: `linear-gradient(135deg, ${s.color}, ${s.color}aa)`, color: '#fff' }}>
+                  <Icon name={s.icon} size={22} />
+                </div>
+                <span className="studio-card-badge">{s.cat}</span>
+              </div>
+              <div className="studio-card-title">
+                <span>{s.name}</span>
+                <span style={{ fontSize: '14px', opacity: 0.5 }}>→</span>
+              </div>
+              <p className="studio-card-desc">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Recent Projects Section */}
+        <div className="row sechead" style={{ marginTop: '24px' }}>
+          <h2 className="grow">Recent Projects</h2>
+          <div className="seg">
+            <button className={sort === 'recent' ? 'on' : ''} onClick={() => setSort('recent')}>Recent</button>
+            <button className={sort === 'name' ? 'on' : ''} onClick={() => setSort('name')}>A–Z</button>
+          </div>
+        </div>
+
+        <div className="hero2" style={{ marginBottom: '14px' }}>
+          <button className="tile t1" onClick={() => fileRef.current?.click()}>
+            <i><Icon name="plus" size={26} /></i><b>New video</b><small>Pick photos & videos</small>
+          </button>
+          <button className="tile t2" onClick={() => setModal(true)}>
+            <i><Icon name="film" size={26} /></i><b>Blank Project</b><small>Custom size & frame rate</small>
+          </button>
+        </div>
+
         <label className="search"><Icon name="search" size={18} /><input placeholder="Search projects" value={q} onChange={(e) => setQ(e.target.value)} /></label>
         {err && <div className="errbox"><span>{err}</span><button className="btn sm" onClick={load}>Retry</button></div>}
         {loading && !list.length && <div className="plist">{[0, 1, 2].map((i) => <div key={i} className="prow skel" />)}</div>}
@@ -106,6 +205,12 @@ export default function Dashboard() {
               <button className="danger" onClick={act(async () => { if (confirm('Delete this project?')) await api(`/projects/${p.id}`, { method: 'DELETE' }); })}>Delete</button></div>}
           </div>))}</div>
       </main>
+
+      {/* Global Modals */}
+      <GlobalCreativeSearch open={searchOpen} onClose={() => setSearchOpen(false)} projects={list} />
+      <AiAssistantModal open={aiOpen} onClose={() => setAiOpen(false)} />
+      <NotificationsModal open={notifOpen} onClose={() => setNotifOpen(false)} />
+
       <input ref={fileRef} hidden type="file" multiple accept="video/*,image/*" onChange={(e) => { startFromMedia([...e.target.files]); e.target.value = ''; }} />
       {busy && <div className="overlay"><div className="card busybox"><div className="spin" /><b>{busy.msg}</b><div className="bar"><i style={{ width: `${busy.pct}%` }} /></div><small className="muted">Keep the app open</small></div></div>}
       {modal && <div className="overlay" onClick={() => setModal(false)}><form className="card auth" onClick={(e) => e.stopPropagation()} onSubmit={create}>

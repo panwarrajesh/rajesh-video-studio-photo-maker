@@ -123,18 +123,18 @@ export default function SoundStudio() {
   return (
     <div className="studio-page">
       <header className="studio-header">
-        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={20} /></button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>🎚️</span>
-          <b>Sound Engineering Studio</b>
+        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={18} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '18px' }}>🎚️</span>
+          <b style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>Sound Studio</b>
         </div>
         <span className="grow" />
         <button
           className="btn sm"
-          style={{ background: micActive ? 'var(--danger)' : '#10b981', color: '#fff', border: 'none' }}
+          style={{ background: micActive ? 'var(--danger)' : '#10b981', color: '#fff', border: 'none', padding: '5px 10px', fontSize: '11px' }}
           onClick={toggleMic}
         >
-          {micActive ? '🔴 Stop Mic' : '🎙️ Live Mic Monitor'}
+          {micActive ? '🔴 Stop' : '🎙️ Mic'}
         </button>
         <ThemeToggle />
       </header>

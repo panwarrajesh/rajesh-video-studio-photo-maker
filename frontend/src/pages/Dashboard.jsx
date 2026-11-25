@@ -57,23 +57,26 @@ export default function Dashboard() {
       <header className="top">
         <Logo />
         <button
-          className="btn sm"
+          className="btn sm header-search-btn"
           onClick={() => setSearchOpen(true)}
-          style={{ background: 'var(--s2)', border: '1px solid var(--line)', color: 'var(--mut)', borderRadius: '20px', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}
+          style={{ background: 'var(--s2)', border: '1px solid var(--line)', color: 'var(--mut)', borderRadius: '20px', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          title="Search studios and tools"
         >
           <Icon name="search" size={14} />
-          <span style={{ fontSize: '12px' }}>Search studios & tools…</span>
+          <span className="header-search-text" style={{ fontSize: '12px' }}>Search…</span>
         </button>
         <span className="grow" />
         <button
           className="btn sm"
           onClick={() => setAiOpen(true)}
-          style={{ background: 'linear-gradient(135deg, #a855f722, #6366f133)', border: '1px solid #a855f766', color: '#c084fc', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          style={{ background: 'linear-gradient(135deg, #a855f722, #6366f133)', border: '1px solid #a855f766', color: '#c084fc', borderRadius: '20px', padding: '5px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+          title="Universal AI Assistant"
         >
-          <span>🤖 AI Assistant</span>
+          <span>🤖</span>
+          <span className="header-ai-text">AI</span>
         </button>
-        <button className="ib" title="Notifications" onClick={() => setNotifOpen(true)}>
-          <Icon name="bell" size={18} />
+        <button className="ib" title="Notifications" onClick={() => setNotifOpen(true)} style={{ width: '36px', height: '36px' }}>
+          <Icon name="bell" size={16} />
         </button>
         <ThemeToggle />
         {!isNative() && (
@@ -81,11 +84,11 @@ export default function Dashboard() {
             href="/Rajesh-Video-Studio.apk"
             download="Rajesh-Video-Studio.apk"
             className="btn sm"
-            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.35))', border: '1px solid rgba(16, 185, 129, 0.6)', color: '#34d399', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', fontWeight: 600 }}
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.35))', border: '1px solid rgba(16, 185, 129, 0.6)', color: '#34d399', borderRadius: '20px', padding: '5px 9px', fontSize: '11px', fontWeight: 600 }}
             title="Download Android App APK"
           >
-            <Icon name="download" size={14} />
-            <span>APK</span>
+            <Icon name="download" size={13} />
+            <span className="apk-badge-text">APK</span>
           </a>
         )}
         <div className="pwrap" onClick={(e) => e.stopPropagation()}>

@@ -83,15 +83,15 @@ export default function DesignStudio() {
   return (
     <div className="studio-page">
       <header className="studio-header">
-        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={20} /></button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>🎨</span>
-          <b>Graphic Design Studio</b>
+        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={18} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '18px' }}>🎨</span>
+          <b style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>Design</b>
         </div>
         <span className="grow" />
         <ThemeToggle />
-        <button className="btn sm primary" onClick={handleDownload}>
-          ⬇️ Export PNG
+        <button className="btn sm primary" style={{ padding: '5px 10px', fontSize: '11px' }} onClick={handleDownload}>
+          ⬇️ PNG
         </button>
       </header>
 

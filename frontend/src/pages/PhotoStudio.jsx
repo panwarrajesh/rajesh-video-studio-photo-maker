@@ -113,22 +113,19 @@ export default function PhotoStudio() {
   return (
     <div className="studio-page">
       <header className="studio-header">
-        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={20} /></button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>📸</span>
+        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={18} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '18px' }}>📸</span>
           <b>Photo Studio</b>
         </div>
         <span className="grow" />
-        <label className="btn sm primary" style={{ cursor: 'pointer' }}>
-          <span>+ Open Photo</span>
+        <label className="btn sm primary" style={{ cursor: 'pointer', padding: '5px 8px' }}>
+          <span>+ Photo</span>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFile} />
         </label>
         <ThemeToggle />
-        <button className="btn sm" style={{ background: '#10b981', color: '#fff', border: 'none' }} onClick={() => handleExport('image/jpeg')}>
-          ⬇️ Export JPEG
-        </button>
-        <button className="btn sm" style={{ background: '#3b82f6', color: '#fff', border: 'none' }} onClick={() => handleExport('image/png')}>
-          PNG
+        <button className="btn sm" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '5px 10px' }} onClick={() => handleExport('image/jpeg')}>
+          ⬇️ Save
         </button>
       </header>
 

@@ -550,6 +550,13 @@ html{touch-action:manipulation}
 }
 
 /* ===== Phase 1 Master Dashboard & Creative Suite Extensions ===== */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
 .studio-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -783,4 +790,163 @@ html{touch-action:manipulation}
   width: 100%;
   margin: 0 auto;
 }
+
+/* ===================================================
+   COMPREHENSIVE MOBILE RESPONSIVE ENGINE (Android & iOS)
+   =================================================== */
+@media (max-width: 680px) {
+  /* Prevent any horizontal overflow on mobile */
+  .wrap, .page, .studio-page, .studio-body {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    padding: 10px 8px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Compact Dashboard Top Bar on Phone */
+  .top {
+    height: 52px !important;
+    padding: 0 8px !important;
+    gap: 4px !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+  .top .logo span {
+    display: none !important; /* Hide long title, show clean modern logo icon */
+  }
+  .header-search-btn {
+    padding: 5px 8px !important;
+  }
+  .header-search-text,
+  .header-ai-text,
+  .apk-badge-text {
+    display: none !important; /* Compact icon-only badges on small phone screen */
+  }
+
+  /* Studio Headers on Phone */
+  .studio-header {
+    height: 50px !important;
+    padding: 0 8px !important;
+    gap: 6px !important;
+    max-width: 100vw !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  .studio-header::-webkit-scrollbar {
+    display: none !important;
+  }
+  .studio-header b {
+    font-size: 13px !important;
+    max-width: 30vw !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .studio-header .btn.sm {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+  .studio-header .ib {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  /* 2-column mobile studio card grid */
+  .studio-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    margin: 10px 0 18px 0 !important;
+  }
+  .studio-card {
+    padding: 10px !important;
+    border-radius: 14px !important;
+    gap: 6px !important;
+  }
+  .studio-card-icon {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 18px !important;
+    border-radius: 10px !important;
+  }
+  .studio-card-title {
+    font-size: 12px !important;
+  }
+  .studio-card-badge {
+    font-size: 8px !important;
+    padding: 1px 4px !important;
+  }
+  .studio-card-desc {
+    font-size: 10.5px !important;
+    line-height: 1.3 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  /* Quick Actions Bar */
+  .quick-actions-bar {
+    padding: 2px 0 6px 0 !important;
+    gap: 6px !important;
+  }
+  .quick-action-pill {
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  /* Hero Cards on Phone */
+  .hero2 {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .tile {
+    padding: 12px !important;
+  }
+  .tile b {
+    font-size: 13px !important;
+  }
+  .tile small {
+    font-size: 11px !important;
+  }
+
+  /* DAW & Music Studio on Phone */
+  .piano-keyboard {
+    height: 115px !important;
+  }
+  .white-key {
+    min-width: 28px !important;
+    font-size: 9px !important;
+    padding-bottom: 4px !important;
+  }
+  .black-key {
+    width: 18px !important;
+    height: 58% !important;
+  }
+  .drum-pad-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+  }
+  .drum-pad {
+    font-size: 10px !important;
+    border-radius: 10px !important;
+  }
+  .step-seq-btn {
+    min-width: 22px !important;
+    height: 26px !important;
+  }
+
+  /* Photo Studio on Phone */
+  .studio-body canvas {
+    max-height: 48vh !important;
+  }
+
+  /* Storage Pill */
+  .storage-info-pill {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    border-radius: 12px !important;
+  }
+}
+
 

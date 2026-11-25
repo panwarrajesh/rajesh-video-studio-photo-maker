@@ -67,10 +67,10 @@ export default function MusicAcademy() {
   return (
     <div className="studio-page">
       <header className="studio-header">
-        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={20} /></button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>🎓</span>
-          <b>Music Learning Academy</b>
+        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={18} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '18px' }}>🎓</span>
+          <b style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>Academy</b>
         </div>
         <span className="grow" />
         <ThemeToggle />

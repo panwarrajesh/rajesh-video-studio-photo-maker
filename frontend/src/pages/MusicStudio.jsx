@@ -254,22 +254,22 @@ export default function MusicStudio() {
   return (
     <div className="studio-page">
       <header className="studio-header">
-        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={20} /></button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>🎵</span>
-          <b>Music Studio (Mobile DAW)</b>
+        <button className="ib" onClick={() => nav('/')} title="Back to Dashboard"><Icon name="back" size={18} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '18px' }}>🎵</span>
+          <b style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>Music DAW</b>
         </div>
         <span className="grow" />
         <button
           className="btn sm"
-          style={{ background: playing ? 'var(--danger)' : '#10b981', color: '#fff', border: 'none', padding: '6px 14px' }}
+          style={{ background: playing ? 'var(--danger)' : '#10b981', color: '#fff', border: 'none', padding: '5px 10px' }}
           onClick={() => setPlaying(!playing)}
         >
-          {playing ? '⏸️ Stop' : '▶️ Play Loop'}
+          {playing ? '⏸️' : '▶️ Play'}
         </button>
         <ThemeToggle />
-        <button className="btn sm primary" onClick={handleExportWav}>
-          ⬇️ Export WAV
+        <button className="btn sm primary" style={{ padding: '5px 8px' }} onClick={handleExportWav}>
+          ⬇️ WAV
         </button>
       </header>
 

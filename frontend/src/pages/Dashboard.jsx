@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, upload } from '../services/api.js';
+import { api, upload, isNative } from '../services/api.js';
 import { getDuration, fileThumb } from '../utils/media.js';
 import { useAuth } from '../store/auth.js';
 import { Icon, Logo } from '../components/Icon.jsx';
@@ -50,9 +50,31 @@ export default function Dashboard() {
   return (
     <div className="page home" onClick={() => { setMenu(null); setPm(false); }}>
       <header className="top"><Logo /><span className="grow" />
+        {!isNative() && (
+          <a
+            href="/Rajesh-Video-Studio.apk"
+            download="Rajesh-Video-Studio.apk"
+            className="btn sm"
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', marginRight: '10px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.35))', border: '1px solid rgba(16, 185, 129, 0.6)', color: '#34d399', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', fontWeight: 600 }}
+            title="Download Android App APK"
+          >
+            <Icon name="download" size={14} />
+            <span>Download APK</span>
+          </a>
+        )}
         <div className="pwrap" onClick={(e) => e.stopPropagation()}>
           <button className="avatar" title="Account" onClick={() => setPm(!pm)}>{first.charAt(0).toUpperCase()}</button>
-          {pm && <div className="pmenu right"><div className="who"><b>{user?.name || 'Rajesh'}</b><small className="muted">{user?.plan || 'PRO'} plan</small></div></div>}
+          {pm && (
+            <div className="pmenu right">
+              <div className="who"><b>{user?.name || 'Rajesh'}</b><small className="muted">{user?.plan || 'PRO'} plan</small></div>
+              {!isNative() && (
+                <a href="/Rajesh-Video-Studio.apk" download="Rajesh-Video-Studio.apk" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', textDecoration: 'none', color: '#fff', fontSize: '13px' }}>
+                  <Icon name="download" size={16} />
+                  <span>Download Android App (.apk)</span>
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </header>
       <main className="wrap">

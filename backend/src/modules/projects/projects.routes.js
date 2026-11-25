@@ -13,18 +13,18 @@ export async function deleteProjectAndFiles(projectId) {
   try {
     const mediaList = await prisma.projectMedia.findMany({ where: { projectId } });
     for (const m of mediaList) {
-      if (m.url) await removeFile(m.url).catch(() => {});
+      if (m.url) await removeFile(m.url).catch(() => { });
     }
-  } catch {}
+  } catch { }
 
   try {
     const exportList = await prisma.exportJob.findMany({ where: { projectId } });
     for (const exp of exportList) {
-      if (exp.outputUrl) await removeFile(exp.outputUrl).catch(() => {});
+      if (exp.outputUrl) await removeFile(exp.outputUrl).catch(() => { });
     }
-  } catch {}
+  } catch { }
 
-  await prisma.project.delete({ where: { id: projectId } }).catch(() => {});
+  await prisma.project.delete({ where: { id: projectId } }).catch(() => { });
 }
 
 r.get('/', async (req, res) => {
@@ -91,10 +91,12 @@ r.put('/:id/timeline', async (req, res) => {
   const duration = Math.max(0, ...b.data.clips.map((c) => c.start + c.duration));
   await prisma.$transaction([
     prisma.timelineClip.deleteMany({ where: { track: { projectId: pr.id } } }),
-    prisma.timelineClip.createMany({ data: b.data.clips.map((c) => ({
-      id: `${pr.id}_${c.id}`, trackId: trackId[c.track], mediaId: owned.has(c.mediaId) ? c.mediaId : null, kind: c.kind ?? null,
-      start: c.start, duration: c.duration, trimIn: c.trimIn, speed: c.speed, srcLen: c.srcLen, props: c.props, keyframes: c.keyframes ?? {},
-    })) }),
+    prisma.timelineClip.createMany({
+      data: b.data.clips.map((c) => ({
+        id: `${pr.id}_${c.id}`, trackId: trackId[c.track], mediaId: owned.has(c.mediaId) ? c.mediaId : null, kind: c.kind ?? null,
+        start: c.start, duration: c.duration, trimIn: c.trimIn, speed: c.speed, srcLen: c.srcLen, props: c.props, keyframes: c.keyframes ?? {},
+      }))
+    }),
     ...pr.tracks.filter((t) => b.data.tracks?.[t.type]).map((t) => prisma.timelineTrack.update({ where: { id: t.id }, data: b.data.tracks[t.type] })),
     prisma.project.update({ where: { id: pr.id }, data: { duration, ...(b.data.markers ? { markers: b.data.markers } : {}) } }),
   ]);

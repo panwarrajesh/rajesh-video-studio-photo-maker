@@ -16,10 +16,12 @@ export function setTokens(d) {
 export function clearTokens() { memAccess = null; localStorage.removeItem('rvs_access'); localStorage.removeItem('rvs_refresh'); }
 const cred = () => ({ credentials: COOKIE ? 'include' : 'same-origin' });
 
+const CLOUD_API = 'https://rajesh-video-studio-photo-maker.onrender.com/api';
+
 const compute = () => {
   let server = getServer();
   if (server) {
-    if ((server.includes('localhost') && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) || server.includes('-1.onrender.com')) {
+    if (server.includes('-1.onrender.com') || (server.includes('localhost') && typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !isNative())) {
       localStorage.removeItem('rvs_server');
       server = '';
     } else {
@@ -28,10 +30,17 @@ const compute = () => {
   }
   const envUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
   if (envUrl && !envUrl.includes('-1.onrender.com')) return envUrl;
-  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    return 'https://rajesh-video-studio-photo-maker.onrender.com/api';
+
+  // On Native Android/iOS or any deployed site (e.g. Vercel), default directly to live cloud API
+  if (isNative()) return CLOUD_API;
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host !== 'localhost' && host !== '127.0.0.1' && !host.startsWith('192.168.') && !host.startsWith('10.')) {
+      return CLOUD_API;
+    }
   }
-  return envUrl || '/api';
+  return '/api';
 };
 let BASE = compute();
 
@@ -58,7 +67,7 @@ function refresh() {
   return refreshing;
 }
 
-export async function api(path, { method = 'GET', body, retry = true } = {}) {
+export async function api(path, { method = 'GET', body, retry = true, attempts = 0 } = {}) {
   let res;
   try {
     const accessToken = getAccess();
@@ -66,8 +75,14 @@ export async function api(path, { method = 'GET', body, retry = true } = {}) {
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`; // only send it when a token exists
     res = await fetch(`${BASE}${path}`, { method, ...cred(), headers, body: body ? JSON.stringify(body) : undefined });
   } catch (error) {
+    console.warn(`API call failed to ${path} (attempt ${attempts + 1}):`, error);
+    // If network error (e.g. Render free tier waking up), retry automatically up to 2 times
+    if (attempts < 2 && (method === 'GET' || path === '/auth/me')) {
+      await new Promise((r) => setTimeout(r, 2000));
+      return api(path, { method, body, retry, attempts: attempts + 1 });
+    }
     console.error('API NETWORK ERROR:', error);
-    throw new Error('Network error. Check your connection.');
+    throw new Error('Server wake up ho raha hai ya internet check karein. Kripya Retry dabayein.');
   }
   if (res.status === 401 && retry && (await refresh())) return api(path, { method, body, retry: false });
   const data = await res.json().catch(() => ({}));

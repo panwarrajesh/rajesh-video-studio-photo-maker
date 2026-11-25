@@ -17,8 +17,15 @@ export function clearTokens() { memAccess = null; localStorage.removeItem('rvs_a
 const cred = () => ({ credentials: COOKIE ? 'include' : 'same-origin' });
 
 const compute = () => {
-  const server = getServer();
-  if (server) return `${server.replace(/\/+$/, '')}/api`;
+  let server = getServer();
+  if (server) {
+    if ((server.includes('localhost') && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) || server.includes('-1.onrender.com')) {
+      localStorage.removeItem('rvs_server');
+      server = '';
+    } else {
+      return `${server.replace(/\/+$/, '')}/api`;
+    }
+  }
   const envUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
   if (envUrl && !envUrl.includes('-1.onrender.com')) return envUrl;
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {

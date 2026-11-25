@@ -9,6 +9,10 @@ import EditorBeatMaker from '../features/EditorBeatMaker.jsx';
 import EditorVoiceover from '../features/EditorVoiceover.jsx';
 import EditorAiStudio from '../features/EditorAiStudio.jsx';
 import EditorLooks from '../features/EditorLooks.jsx';
+import EditorStickers, { PRO_STICKERS } from '../features/EditorStickers.jsx';
+import EditorEffectsPanel from '../features/EditorEffectsPanel.jsx';
+import EditorAudioFx from '../features/EditorAudioFx.jsx';
+import EditorTemplates from '../features/EditorTemplates.jsx';
 import { useAutosave } from '../hooks/useAutosave.js';
 import { Icon, Logo } from '../components/Icon.jsx';
 import { MobileTimeline, MobileTransport, MobileToolbar, MiniSheet } from '../editor/Mobile.jsx';
@@ -209,13 +213,50 @@ function buildTextShadow(p) {
 function Layer({ c, t, isSelected, onSelect }) {
   const p = evalProps(c, t), st = { ...vstyle(c, t, true), left: `${50 + p.x / 2}%`, top: `${50 + p.y / 2}%` };
   if (c.kind === 'sticker') {
+    const sData = p.stickerData || PRO_STICKERS.find((x) => x.id === p.shape || x.id === c.stickerId || x.id === p.stickerId);
+    if (sData?.type === 'badge') {
+      return (
+        <div
+          className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
+          style={{
+            ...st,
+            pointerEvents: 'auto',
+            cursor: 'pointer',
+            background: sData.bg,
+            color: sData.color,
+            border: sData.border,
+            borderRadius: sData.borderRadius || '16px',
+            padding: sData.padding || '6px 14px',
+            fontSize: `${p.fontSize || 3.8}cqw`,
+            fontWeight: sData.fontWeight || '800',
+            boxShadow: sData.boxShadow,
+            whiteSpace: 'nowrap',
+          }}
+          onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+        >
+          {sData.content || p.label || '⭐ STICKER'}
+        </div>
+      );
+    } else if (sData?.type === 'svg') {
+      return (
+        <div
+          className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
+          style={{ ...st, width: '22cqw', height: '22cqw', pointerEvents: 'auto', cursor: 'pointer' }}
+          onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+        >
+          <svg viewBox={sData.viewBox || '0 0 100 100'} width="100%" height="100%" style={{ filter: sData.filter }}>
+            <path d={sData.path} fill={sData.fill || p.color || 'none'} stroke={sData.stroke} strokeWidth={sData.strokeWidth} />
+          </svg>
+        </div>
+      );
+    }
     return (
       <div
         className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
         style={{ ...st, width: '20cqw', height: '20cqw', pointerEvents: 'auto', cursor: 'pointer' }}
         onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
       >
-        <Shape shape={p.shape} color={p.color} />
+        <Shape shape={p.shape || 'star'} color={p.color || '#ffb020'} />
       </div>
     );
   }
@@ -330,14 +371,16 @@ function clipStyle(c, t) {
 
 const TABS = [
   ['media', 'film', '📸 Media'],
+  ['effects', 'sparkles', '✨ Pro FX'],
+  ['stickers', 'smile', '⭐ Stickers'],
+  ['templates', 'layers', '⚡ Templates'],
+  ['soundfx', 'volume', '🎛️ Audio FX'],
   ['beatmaker', 'music', '🎵 Beat DAW'],
   ['voiceover', 'mic', '🎙️ Voiceover'],
   ['captions', 'type', '🎤 Captions'],
   ['text', 'type', '🇮🇳 Hindi Text'],
   ['looks', 'filter', '🎨 Looks'],
   ['ailab', 'sparkles', '🤖 AI Lab'],
-  ['stickers', 'smile', 'Stickers'],
-  ['effects', 'sparkles', 'Effects'],
 ];
 const TEXT_PRESETS = [
   {
@@ -504,10 +547,40 @@ function LeftPanel({ tab, setTab, projectId, setErr, onAdded }) {
             </small>
           </div>
         )}
-        {tab === 'stickers' && <div className="stickers">{Object.keys(SHAPES).map((k) => (
-          <button key={k} className="stk" title={k} onClick={() => add({ track: 'OVERLAY', kind: 'sticker', shape: k, color: '#ffb020' })}><Shape shape={k} color="#ffb020" /></button>))}</div>}
-        {tab === 'effects' && <div className="chips">{Object.entries(EFFECTS).map(([k, v]) => (
-          <button key={k} className="chip" onClick={() => add({ track: 'EFFECTS', kind: 'effect', effect: k, intensity: 0.6 })}>{v.label}</button>))}</div>}
+        {tab === 'stickers' && (
+          <EditorStickers
+            onAddSticker={(s) => {
+              add({
+                track: 'OVERLAY',
+                kind: 'sticker',
+                stickerId: s.id,
+                label: s.content || s.name,
+                shape: s.id,
+                color: s.color || '#ffb020',
+                props: {
+                  stickerData: s,
+                  label: s.content || s.name,
+                  color: s.color || '#ffb020',
+                },
+              });
+            }}
+          />
+        )}
+        {tab === 'effects' && (
+          <EditorEffectsPanel
+            onAddEffect={(effKey) => {
+              add({
+                track: 'EFFECTS',
+                kind: 'effect',
+                effect: effKey,
+                intensity: 0.7,
+                duration: 3,
+              });
+            }}
+          />
+        )}
+        {tab === 'templates' && <EditorTemplates />}
+        {tab === 'soundfx' && <EditorAudioFx projectId={projectId} />}
       </div>
     </div>
   );

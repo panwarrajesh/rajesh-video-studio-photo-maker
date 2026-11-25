@@ -189,14 +189,16 @@ export function MobileToolbar({ mobile, openLeft, openProps, openMini }) {
         <Icon name="plus" size={21} />
         <span>+ Photos</span>
       </button>
+      {B('sparkles', 'Pro FX', () => openLeft('effects'))}
+      {B('smile', 'Stickers', () => openLeft('stickers'))}
+      {B('layers', 'Templates', () => openLeft('templates'))}
+      {B('volume', 'Audio FX', () => openLeft('soundfx'))}
       {B('music', 'Beat DAW', () => openLeft('beatmaker'))}
       {B('mic', 'Voiceover', () => openLeft('voiceover'))}
       {B('type', 'Captions', () => openLeft('captions'))}
       {B('type', 'Hindi Text', () => openLeft('text'))}
       {B('filter', 'Looks', () => openLeft('looks'))}
       {B('sparkles', 'AI Lab', () => openLeft('ailab'))}
-      {B('smile', 'Stickers', () => openLeft('stickers'))}
-      {B('sparkles', 'Effects', () => openLeft('effects'))}
       {B('crop', 'Ratio', () => openMini('ratio'))}
     </>}</nav>
   );

@@ -68,7 +68,7 @@ export default function ExportDialog({ project, onClose }) {
           const m = media.find((x) => x.id === c.mediaId);
           if (m && !loadedImages.has(m.id)) {
             const img = new Image();
-            img.crossOrigin = 'anonymous';
+            if (/^https?:\/\//.test(fileUrl(m.url))) img.crossOrigin = 'anonymous';
             img.src = fileUrl(m.url);
             await new Promise((res) => { img.onload = res; img.onerror = res; });
             loadedImages.set(m.id, img);
@@ -77,7 +77,7 @@ export default function ExportDialog({ project, onClose }) {
           const m = media.find((x) => x.id === c.mediaId);
           if (m && !loadedVideos.has(m.id)) {
             const vid = document.createElement('video');
-            vid.crossOrigin = 'anonymous';
+            if (/^https?:\/\//.test(fileUrl(m.url))) vid.crossOrigin = 'anonymous';
             vid.src = fileUrl(m.url);
             vid.muted = true;
             vid.playsInline = true;
@@ -87,8 +87,43 @@ export default function ExportDialog({ project, onClose }) {
         }
       }
 
+      // Setup Web Audio mixing for export
+      let audioCtx = null;
+      let audioDest = null;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioDest = audioCtx.createMediaStreamDestination();
+      } catch (err) {
+        console.warn('AudioContext not available:', err);
+      }
+
       const fps = Number(s.fps) || 30;
       const stream = canvas.captureStream(fps);
+
+      if (audioDest && audioDest.stream.getAudioTracks().length) {
+        stream.addTrack(audioDest.stream.getAudioTracks()[0]);
+      }
+
+      // Pre-schedule audio buffers for active audio clips so they mix into audioDest
+      const activeAudioClips = activeClips.filter((c) => c.track === 'AUDIO' || c.track === 'audio');
+      if (audioCtx && audioDest && activeAudioClips.length) {
+        for (const ac of activeAudioClips) {
+          const m = media.find((x) => x.id === ac.mediaId);
+          if (m?.url) {
+            try {
+              const resp = await fetch(fileUrl(m.url));
+              const arrayBuf = await resp.arrayBuffer();
+              const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+              const source = audioCtx.createBufferSource();
+              source.buffer = audioBuf;
+              source.connect(audioDest);
+              source.start(audioCtx.currentTime + Math.max(0, ac.start));
+            } catch (err) {
+              console.warn('Could not decode audio for export track:', err);
+            }
+          }
+        }
+      }
 
       let mimeType = 'video/webm;codecs=vp9';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
@@ -140,7 +175,14 @@ export default function ExportDialog({ project, onClose }) {
           const vEl = loadedVideos.get(vidClip.mediaId);
           if (vEl) {
             const seekTo = vidClip.trimIn + (curTime - vidClip.start) * vidClip.speed;
-            vEl.currentTime = seekTo;
+            if (Math.abs(vEl.currentTime - seekTo) > 0.04) {
+              vEl.currentTime = seekTo;
+              await new Promise((r) => {
+                const done = () => { vEl.removeEventListener('seeked', done); r(); };
+                vEl.addEventListener('seeked', done);
+                setTimeout(done, 40);
+              });
+            }
             ctx.drawImage(vEl, 0, 0, targetW, targetH);
           }
         } else if (imgClip) {
@@ -195,11 +237,18 @@ export default function ExportDialog({ project, onClose }) {
               ctx.strokeText(text, 0, 0);
             }
           } else if (ov.kind === 'sticker') {
-            const text = ov.props?.label || ov.label || ov.props?.shape || '⭐';
-            ctx.fillStyle = ov.props?.color || '#ffb020';
-            ctx.font = `bold ${Math.round(targetW * 0.055)}px sans-serif`;
+            const sData = ov.props?.stickerData;
+            const text = sData?.content || ov.props?.label || ov.label || ov.props?.shape || '⭐';
+            const fSize = Math.round(targetW * 0.055);
+            ctx.font = `bold ${fSize}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            if (sData?.bg && sData.bg !== 'transparent') {
+              const m = ctx.measureText(text);
+              ctx.fillStyle = sData.bg.includes('gradient') ? '#dc2626' : sData.bg;
+              ctx.fillRect(-m.width / 2 - 10, -fSize / 2 - 6, m.width + 20, fSize + 12);
+            }
+            ctx.fillStyle = sData?.color || ov.props?.color || '#ffb020';
             ctx.fillText(text, 0, 0);
           }
           ctx.restore();

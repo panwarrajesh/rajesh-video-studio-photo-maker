@@ -46,14 +46,20 @@ export const useEditor = create((set, get) => {
     setMedia: (media) => set({ media }),
     addClip(m) {
       rec(null);
-      const end = Math.max(0, ...get().clips.filter((c) => c.track === m.type).map((c) => c.start + c.duration));
-      const duration = m.duration || 5;
-      const clip = { id: crypto.randomUUID(), mediaId: m.id, track: m.type, start: end, duration, trimIn: 0, speed: 1, srcLen: m.type === 'IMAGE' ? 3600 : duration, props: { ...DEFAULT_PROPS }, keyframes: {} };
+      const rawTrack = String(m.type || 'VIDEO').toUpperCase();
+      const track = ['VIDEO', 'IMAGE', 'AUDIO', 'TEXT', 'OVERLAY', 'EFFECTS'].includes(rawTrack)
+        ? rawTrack
+        : (rawTrack.includes('AUDIO') || rawTrack.includes('VOICE') ? 'AUDIO' : rawTrack.includes('IMAGE') ? 'IMAGE' : 'VIDEO');
+      const end = Math.max(0, ...get().clips.filter((c) => c.track === track).map((c) => c.start + c.duration));
+      const duration = Number(m.duration) || 5;
+      const clip = { id: crypto.randomUUID(), mediaId: m.id, track, start: end, duration, trimIn: 0, speed: 1, srcLen: track === 'IMAGE' ? 3600 : duration, props: { ...DEFAULT_PROPS }, keyframes: {} };
       set((s) => ({ clips: [...s.clips, clip], selected: clip.id }));
     },
     addLayer({ track, kind, ...props }) {
       rec(null);
-      const clip = { id: crypto.randomUUID(), mediaId: null, kind, track, start: get().playhead, duration: 3, trimIn: 0, speed: 1, srcLen: 3600, props: { ...DEFAULT_PROPS, ...props }, keyframes: {} };
+      const rawTrack = String(track || 'OVERLAY').toUpperCase();
+      const normTrack = ['VIDEO', 'IMAGE', 'AUDIO', 'TEXT', 'OVERLAY', 'EFFECTS'].includes(rawTrack) ? rawTrack : 'OVERLAY';
+      const clip = { id: crypto.randomUUID(), mediaId: null, kind, track: normTrack, start: get().playhead, duration: Number(props.duration) || 3, trimIn: 0, speed: 1, srcLen: 3600, props: { ...DEFAULT_PROPS, ...props }, keyframes: {} };
       set((s) => ({ clips: [...s.clips, clip], selected: clip.id }));
     },
     moveClip: (id, start) => edit(`m${id}`, id, (c) => ({ ...c, start: Math.max(0, start) })),

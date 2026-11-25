@@ -212,6 +212,29 @@ function buildTextShadow(p) {
 
 function Layer({ c, t, isSelected, onSelect }) {
   const p = evalProps(c, t), st = { ...vstyle(c, t, true), left: `${50 + p.x / 2}%`, top: `${50 + p.y / 2}%` };
+
+  const handlePointerDown = (e) => {
+    e.stopPropagation();
+    onSelect?.(c.id);
+    const startX = e.clientX, startY = e.clientY;
+    const origX = p.x || 0, origY = p.y || 0;
+    const stage = e.currentTarget.closest('.stage');
+    const stageWidth = stage ? stage.clientWidth : 300;
+    const stageHeight = stage ? stage.clientHeight : 500;
+
+    const onPointerMove = (ev) => {
+      const dx = ((ev.clientX - startX) / stageWidth) * 200;
+      const dy = ((ev.clientY - startY) / stageHeight) * 200;
+      useEditor.getState().updateProps(c.id, { x: Math.round(origX + dx), y: Math.round(origY + dy) });
+    };
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
+
   if (c.kind === 'sticker') {
     const sData = p.stickerData || PRO_STICKERS.find((x) => x.id === p.shape || x.id === c.stickerId || x.id === p.stickerId);
     if (sData?.type === 'badge') {
@@ -221,7 +244,8 @@ function Layer({ c, t, isSelected, onSelect }) {
           style={{
             ...st,
             pointerEvents: 'auto',
-            cursor: 'pointer',
+            cursor: 'grab',
+            touchAction: 'none',
             background: sData.bg,
             color: sData.color,
             border: sData.border,
@@ -233,6 +257,7 @@ function Layer({ c, t, isSelected, onSelect }) {
             whiteSpace: 'nowrap',
           }}
           onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+          onPointerDown={handlePointerDown}
         >
           {sData.content || p.label || '⭐ STICKER'}
         </div>
@@ -241,8 +266,9 @@ function Layer({ c, t, isSelected, onSelect }) {
       return (
         <div
           className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
-          style={{ ...st, width: '22cqw', height: '22cqw', pointerEvents: 'auto', cursor: 'pointer' }}
+          style={{ ...st, width: '22cqw', height: '22cqw', pointerEvents: 'auto', cursor: 'grab', touchAction: 'none' }}
           onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+          onPointerDown={handlePointerDown}
         >
           <svg viewBox={sData.viewBox || '0 0 100 100'} width="100%" height="100%" style={{ filter: sData.filter }}>
             <path d={sData.path} fill={sData.fill || p.color || 'none'} stroke={sData.stroke} strokeWidth={sData.strokeWidth} />
@@ -253,8 +279,9 @@ function Layer({ c, t, isSelected, onSelect }) {
     return (
       <div
         className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
-        style={{ ...st, width: '20cqw', height: '20cqw', pointerEvents: 'auto', cursor: 'pointer' }}
+        style={{ ...st, width: '20cqw', height: '20cqw', pointerEvents: 'auto', cursor: 'grab', touchAction: 'none' }}
         onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+        onPointerDown={handlePointerDown}
       >
         <Shape shape={p.shape || 'star'} color={p.color || '#ffb020'} />
       </div>
@@ -310,6 +337,7 @@ function Layer({ c, t, isSelected, onSelect }) {
     <div
       className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
       onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+      onPointerDown={handlePointerDown}
       style={{
         ...st,
         fontFamily: p.fontFamily,
@@ -332,7 +360,8 @@ function Layer({ c, t, isSelected, onSelect }) {
         WebkitTextStroke: p.stroke ? `${p.stroke}px ${p.strokeColor}` : undefined,
         whiteSpace: 'pre-wrap',
         pointerEvents: 'auto',
-        cursor: 'pointer',
+        cursor: 'grab',
+        touchAction: 'none',
       }}
     >
       {text}
@@ -586,26 +615,47 @@ function LeftPanel({ tab, setTab, projectId, setErr, onAdded }) {
   );
 }
 
+function AudioTrackPlayer({ clip, media, playhead, playing, muted }) {
+  const aRef = useRef();
+  const m = media.find((x) => x.id === clip.mediaId);
+  const src = m ? fileUrl(m.url) : undefined;
+  useEffect(() => {
+    sync(aRef.current, clip, playhead, playing, muted);
+  });
+  return <audio ref={aRef} src={src} preload="auto" playsInline />;
+}
+
 function Preview() {
   const { clips, media, playhead, playing, tracks: tk, selected } = useEditor();
-  const v = useRef(), a = useRef(), stage = useRef();
-  const at = (track) => !tk[track].hidden && clips.find((c) => c.track === track && playhead >= c.start && playhead < c.start + c.duration);
+  const v = useRef(), stage = useRef();
+  const at = (track) => !tk[track]?.hidden && clips.find((c) => c.track === track && playhead >= c.start && playhead < c.start + c.duration);
   const url = (c) => { const m = c && media.find((x) => x.id === c.mediaId); return m ? fileUrl(m.url) : undefined; };
-  const vc = at('VIDEO'), ic = at('IMAGE'), ac = at('AUDIO');
-  useEffect(() => { sync(v.current, vc, playhead, playing, tk.VIDEO.muted); sync(a.current, ac, playhead, playing, tk.AUDIO.muted); });
-  const fx = composeEffects(clips.filter((c) => c.kind === 'effect' && !tk.EFFECTS.hidden && playhead >= c.start && playhead < c.start + c.duration), playhead);
+  const vc = at('VIDEO'), ic = at('IMAGE');
+
+  // ALL active audio clips (Beat DAW music, Voiceover mic, Sound FX, imported tracks)
+  const activeAudios = !tk.AUDIO?.hidden
+    ? clips.filter((c) => (c.track === 'AUDIO' || c.track === 'audio') && playhead >= c.start && playhead < c.start + c.duration)
+    : [];
+
+  useEffect(() => {
+    sync(v.current, vc, playhead, playing, tk.VIDEO?.muted);
+  });
+
+  const fx = composeEffects(clips.filter((c) => c.kind === 'effect' && !tk.EFFECTS?.hidden && playhead >= c.start && playhead < c.start + c.duration), playhead);
   return (<>
     <FxDefs rgb={fx.rgb} mblur={fx.mblur} distort={fx.distort} />
     <div ref={stage} className="stage" style={{ filter: fx.filters.join(' ') || undefined, transform: fx.transforms.join(' ') || undefined }}>
-    <video ref={v} src={url(vc)} className="vid" style={{ display: vc ? 'block' : 'none', ...clipStyle(vc, playhead) }} playsInline onLoadedData={() => sync(v.current, vc, useEditor.getState().playhead, useEditor.getState().playing)} />
-    {!vc && ic && <img className="vid" style={clipStyle(ic, playhead)} src={url(ic)} alt="" />}
-    {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker') && !tk[c.track].hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => (
-      <Layer key={c.id} c={c} t={playhead} isSelected={selected === c.id} onSelect={(cid) => useEditor.getState().select(cid)} />
-    ))}
-    {fx.overlays.map((o, i) => <div key={i} className="ovfx" style={o} />)}
-    {fx.pixel > 0 && <Pixelate stage={stage} size={fx.pixel} />}
+      <video ref={v} src={url(vc)} className="vid" style={{ display: vc ? 'block' : 'none', ...clipStyle(vc, playhead) }} playsInline onLoadedData={() => sync(v.current, vc, useEditor.getState().playhead, useEditor.getState().playing)} />
+      {!vc && ic && <img className="vid" style={clipStyle(ic, playhead)} src={url(ic)} alt="" />}
+      {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker') && !tk[c.track]?.hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => (
+        <Layer key={c.id} c={c} t={playhead} isSelected={selected === c.id} onSelect={(cid) => useEditor.getState().select(cid)} />
+      ))}
+      {fx.overlays.map((o, i) => <div key={i} className="ovfx" style={o} />)}
+      {fx.pixel > 0 && <Pixelate stage={stage} size={fx.pixel} />}
     </div>
-    <audio ref={a} src={url(ac)} />
+    {activeAudios.map((c) => (
+      <AudioTrackPlayer key={c.id} clip={c} media={media} playhead={playhead} playing={playing} muted={tk.AUDIO?.muted} />
+    ))}
   </>);
 }
 
@@ -1005,9 +1055,9 @@ export default function Editor() {
         <button className="chip ratio" title="Aspect ratio" onClick={() => openMini('ratio')}>{ratioLabel(p.width, p.height)} ▾</button>
         <button className="btn primary" onClick={() => setShowExport(true)}><Icon name="download" size={16} /> Export</button>
       </header>
-      <div className={`zl ${sheet === 'left' ? 'open' : ''}`}><button className="ib sheet-x" onClick={() => setSheet(null)}><Icon name="close" /></button><LeftPanel tab={tab} setTab={setTab} projectId={id} setErr={setErr} onAdded={() => setSheet('props')} /></div>
+      <div className={`zl ${sheet === 'left' ? 'open' : ''}`}><button className="ib sheet-x" onClick={() => setSheet(null)}><Icon name="close" /></button><LeftPanel tab={tab} setTab={setTab} projectId={id} setErr={setErr} onAdded={() => { if (mobile) setSheet(null); }} /></div>
       <section className="preview">
-        <div className="canvaswrap" ref={wrapRef}><div className="canvas" style={{ aspectRatio: `${p.width}/${p.height}`, '--ar': p.width / p.height }}><Preview /></div></div>
+        <div className="canvaswrap" ref={wrapRef} onClick={() => { if (!playing && playhead >= dur) seek(0); setPlaying(!playing); }}><div className="canvas" style={{ aspectRatio: `${p.width}/${p.height}`, '--ar': p.width / p.height }} onClick={(e) => e.stopPropagation()}><Preview /></div></div>
         {mobile ? <MobileTransport onFull={() => wrapRef.current?.requestFullscreen?.()} /> : (
           <div className="transport">
           <div className="tgroup">

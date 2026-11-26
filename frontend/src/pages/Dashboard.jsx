@@ -357,67 +357,30 @@ export default function Dashboard() {
               <div className="step-num">1</div>
               <div className="step-content">
                 <b>1. Select Media</b>
-                <p>Tap '+ Pick Photos & Videos' above. Your clips will load on the timeline in 1 second.</p>
+                <p>Tap <b>'+ Pick Photos & Videos'</b> above. Your photos and clips load on the timeline instantly.</p>
               </div>
             </div>
             <div className="guide-step-card">
               <div className="step-num">2</div>
               <div className="step-content">
                 <b>2. Edit Inside Timeline</b>
-                <p>Use in-editor tools below: <b>Hindi Titles, Pro Stickers, DAW Beats, Voiceover, Filters & VFX</b>.</p>
+                <p>All tools are inside the editor: <b>Hindi Titles, Pro Stickers, DAW Beats, Voiceover, Filters & VFX</b>.</p>
               </div>
             </div>
             <div className="guide-step-card">
               <div className="step-num">3</div>
               <div className="step-content">
                 <b>3. Export 1080p HD Video</b>
-                <p>Tap <b>'Export'</b> at the top to save full HD 1080p video directly to your phone gallery with no watermark.</p>
+                <p>Tap <b>'Export'</b> to save full 1080p HD video directly to your phone gallery with sound and no watermark.</p>
               </div>
             </div>
           </div>
           <div className="guide-tip-pill">
-            <span>✨ <b>Pro Tip:</b> Tap any clip to Split/Trim, and use the bottom tools bar to add music, Hindi titles, or effects!</span>
+            <span>✨ <b>Pro Tip:</b> Tap any clip on the timeline to Split/Trim, adjust Speed or Volume, or add effects!</span>
           </div>
         </div>
 
-        {/* 3. IN-EDITOR CREATIVE TOOLS (Direct Shortcuts) */}
-        <div className="quick-studios-sec">
-          <div className="row sechead" style={{ marginBottom: '10px' }}>
-            <h3 className="grow" style={{ fontSize: '15px', fontWeight: 800 }}>⚡ Creative Studios (Inside Video Editor)</h3>
-            <small className="muted">All 12 creative tools available inside</small>
-          </div>
-          <div className="quick-studios-carousel">
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('text')}>
-              <i>🇮🇳</i> <span>Hindi Titles & Text</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('stickers')}>
-              <i>⭐</i> <span>Pro Stickers</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('effects')}>
-              <i>✨</i> <span>Cinema VFX</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('beatmaker')}>
-              <i>🎵</i> <span>Beat DAW</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('voiceover')}>
-              <i>🎙️</i> <span>Voiceover Mic</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('captions')}>
-              <i>🎤</i> <span>Auto Captions</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('templates')}>
-              <i>⚡</i> <span>Reels Templates</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('ailab')}>
-              <i>🤖</i> <span>AI Creative Lab</span>
-            </button>
-            <button className="quick-studio-pill" onClick={() => openStudioInEditor('media')}>
-              <i>📸</i> <span>Photo Studio</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4. RECENT PROJECTS SECTION */}
+        {/* 3. RECENT PROJECTS SECTION */}
         <div className="row sechead" style={{ marginTop: '22px' }}>
           <h2 className="grow" style={{ fontSize: '18px', fontWeight: 800 }}>📁 Recent Projects</h2>
           <div className="seg">

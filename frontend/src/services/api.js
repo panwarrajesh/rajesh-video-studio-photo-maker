@@ -101,7 +101,12 @@ export async function api(path, { method = 'GET', body, retry = true, attempts =
   return data;
 }
 
-export const fileUrl = (u) => (/^https?:/.test(u) ? u : BASE.replace(/\/api$/, '') + u);
+export const fileUrl = (u) => {
+  if (!u) return '';
+  if (/^(https?:|blob:|data:|file:)/i.test(u)) return u;
+  const base = BASE.replace(/\/api$/, '');
+  return `${base}${u.startsWith('/') ? '' : '/'}${u}`;
+};
 
 export async function upload(path, form) {
   let res;

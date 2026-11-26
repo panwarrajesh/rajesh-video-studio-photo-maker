@@ -61,26 +61,26 @@ export default function ExportDialog({ project, onClose }) {
       canvas.height = targetH;
       const ctx = canvas.getContext('2d');
 
-      // Preload media elements
+      // Preload media elements (images and videos)
       const loadedImages = new Map();
       const loadedVideos = new Map();
 
       for (const c of activeClips) {
-        if (c.track === 'IMAGE') {
+        if (c.track === 'IMAGE' || c.track === 'VIDEO') {
           const m = media.find((x) => x.id === c.mediaId);
-          if (m && !loadedImages.has(m.id)) {
+          if (!m) continue;
+          const isImg = c.track === 'IMAGE' || m.type === 'image' || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(m.name || m.url);
+          const u = fileUrl(m.url);
+          if (isImg && !loadedImages.has(m.id)) {
             const img = new Image();
-            if (/^https?:\/\//.test(fileUrl(m.url))) img.crossOrigin = 'anonymous';
-            img.src = fileUrl(m.url);
+            if (/^https?:\/\//.test(u)) img.crossOrigin = 'anonymous';
+            img.src = u;
             await new Promise((res) => { img.onload = res; img.onerror = res; });
             loadedImages.set(m.id, img);
-          }
-        } else if (c.track === 'VIDEO') {
-          const m = media.find((x) => x.id === c.mediaId);
-          if (m && !loadedVideos.has(m.id)) {
+          } else if (!isImg && !loadedVideos.has(m.id)) {
             const vid = document.createElement('video');
-            if (/^https?:\/\//.test(fileUrl(m.url))) vid.crossOrigin = 'anonymous';
-            vid.src = fileUrl(m.url);
+            if (/^https?:\/\//.test(u)) vid.crossOrigin = 'anonymous';
+            vid.src = u;
             vid.muted = true;
             vid.playsInline = true;
             vid.preload = 'auto';
@@ -204,30 +204,35 @@ export default function ExportDialog({ project, onClose }) {
         // 1. Draw Image or Video
         const vidClip = activeClips.find((c) => c.track === 'VIDEO' && curTime >= c.start && curTime < c.start + c.duration);
         const imgClip = activeClips.find((c) => c.track === 'IMAGE' && curTime >= c.start && curTime < c.start + c.duration);
+        const visualClip = vidClip || imgClip;
 
-        if (vidClip) {
-          const vEl = loadedVideos.get(vidClip.mediaId);
-          if (vEl) {
-            const seekTo = vidClip.trimIn + (curTime - vidClip.start) * vidClip.speed;
-            if (Math.abs(vEl.currentTime - seekTo) > 0.04) {
-              vEl.currentTime = seekTo;
-              await new Promise((r) => {
-                const done = () => { vEl.removeEventListener('seeked', done); r(); };
-                vEl.addEventListener('seeked', done);
-                setTimeout(done, 40);
-              });
+        if (visualClip) {
+          const m = media.find((x) => x.id === visualClip.mediaId);
+          const isImg = visualClip.track === 'IMAGE' || m?.type === 'image' || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(m?.name || m?.url);
+          if (isImg) {
+            const iEl = loadedImages.get(visualClip.mediaId);
+            if (iEl && iEl.naturalWidth > 0) {
+              const scale = Math.max(targetW / iEl.naturalWidth, targetH / iEl.naturalHeight);
+              const nw = iEl.naturalWidth * scale;
+              const nh = iEl.naturalHeight * scale;
+              const nx = (targetW - nw) / 2;
+              const ny = (targetH - nh) / 2;
+              ctx.drawImage(iEl, nx, ny, nw, nh);
             }
-            ctx.drawImage(vEl, 0, 0, targetW, targetH);
-          }
-        } else if (imgClip) {
-          const iEl = loadedImages.get(imgClip.mediaId);
-          if (iEl) {
-            const scale = Math.max(targetW / iEl.naturalWidth, targetH / iEl.naturalHeight);
-            const nw = iEl.naturalWidth * scale;
-            const nh = iEl.naturalHeight * scale;
-            const nx = (targetW - nw) / 2;
-            const ny = (targetH - nh) / 2;
-            ctx.drawImage(iEl, nx, ny, nw, nh);
+          } else {
+            const vEl = loadedVideos.get(visualClip.mediaId);
+            if (vEl) {
+              const seekTo = visualClip.trimIn + (curTime - visualClip.start) * visualClip.speed;
+              if (Math.abs(vEl.currentTime - seekTo) > 0.04) {
+                vEl.currentTime = seekTo;
+                await new Promise((r) => {
+                  const done = () => { vEl.removeEventListener('seeked', done); r(); };
+                  vEl.addEventListener('seeked', done);
+                  setTimeout(done, 40);
+                });
+              }
+              ctx.drawImage(vEl, 0, 0, targetW, targetH);
+            }
           }
         }
 

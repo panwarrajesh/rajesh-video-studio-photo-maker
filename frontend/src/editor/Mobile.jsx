@@ -39,13 +39,40 @@ function useFilmstrip(url) {
   return url ? strips.get(url) : null;
 }
 function Strip({ c, m, h, zoom }) {
-  const url = m ? fileUrl(m.url) : null, e = useFilmstrip(c.track === 'VIDEO' ? url : null);
-  if (c.track === 'IMAGE') return <div className="mstrip" style={{ backgroundImage: url ? `url(${url})` : undefined, backgroundSize: 'auto 100%' }} />;
+  const url = m ? fileUrl(m.url) : null;
+  const isImg = c.track === 'IMAGE' || m?.type === 'image' || (m?.name && /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(m.name)) || (m?.url && /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(m.url));
+  const e = useFilmstrip(!isImg && c.track === 'VIDEO' ? url : null);
+
+  if (isImg) {
+    return (
+      <div
+        className="mstrip"
+        style={{
+          backgroundImage: url ? `url("${url}")` : undefined,
+          backgroundSize: 'cover',
+          backgroundRepeat: 'repeat-x',
+          backgroundPosition: 'center',
+          opacity: 0.95,
+        }}
+      />
+    );
+  }
+
   const w = c.duration * zoom, tw = Math.max(h, w / 120), n = Math.ceil(w / tw), N = e?.frames?.length || 0, md = m?.duration || e?.dur || c.srcLen || 1;
-  return <div className="mstrip">{N > 0 && Array.from({ length: n }, (_, i) => {
-    const t = c.trimIn + (((i + 0.5) * tw) / w) * c.duration * c.speed;
-    return <img key={i} alt="" draggable={false} src={e.frames[clamp(Math.floor((t / md) * N), 0, N - 1)]} style={{ width: tw, height: h }} />;
-  })}</div>;
+  return (
+    <div className="mstrip" style={{ background: '#1e293b' }}>
+      {N > 0 ? (
+        Array.from({ length: n }, (_, i) => {
+          const t = c.trimIn + (((i + 0.5) * tw) / w) * c.duration * c.speed;
+          return <img key={i} alt="" draggable={false} src={e.frames[clamp(Math.floor((t / md) * N), 0, N - 1)]} style={{ width: tw, height: h, objectFit: 'cover' }} />;
+        })
+      ) : (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>
+          🎬 {m?.name || 'Video'}
+        </div>
+      )}
+    </div>
+  );
 }
 function TimeLabel() {
   const t = useEditor((s) => s.playhead), tot = useEditor((s) => totalDuration(s.clips));
@@ -105,7 +132,7 @@ export function MobileTimeline({ onAdd, onTrans, Wave }) {
   if (has('EFFECTS')) add('EFFECTS', 40, 'sparkles');
   add('AUDIO', 46, 'music', 'Add audio'); add('TEXT', 46, 'type', 'Add text');
   const main = clips.filter((c) => c.track === 'VIDEO' || c.track === 'IMAGE').sort((a, b) => a.start - b.start);
-  const mainEnd = Math.max(0, ...clips.filter((c) => c.track === 'VIDEO').map((c) => c.start + c.duration));
+  const mainEnd = Math.max(0, ...clips.filter((c) => c.track === 'VIDEO' || c.track === 'IMAGE').map((c) => c.start + c.duration));
   const step = zoom >= 100 ? 1 : zoom >= 50 ? 2 : zoom >= 25 ? 5 : 10, secs = Math.ceil(total + 8);
 
   return (

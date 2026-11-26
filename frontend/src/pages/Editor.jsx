@@ -672,9 +672,17 @@ function AudioTrackPlayer({ clip, media, playhead, playing, muted }) {
 function Preview() {
   const { clips, media, playhead, playing, tracks: tk, selected } = useEditor();
   const v = useRef(), stage = useRef();
+  
+  const getMedia = (c) => c && media.find((x) => x.id === c.mediaId);
+  const url = (c) => { const m = getMedia(c); return m ? fileUrl(m.url) : undefined; };
+
   const at = (track) => !tk[track]?.hidden && clips.find((c) => c.track === track && playhead >= c.start && playhead < c.start + c.duration);
-  const url = (c) => { const m = c && media.find((x) => x.id === c.mediaId); return m ? fileUrl(m.url) : undefined; };
   const vc = at('VIDEO'), ic = at('IMAGE');
+
+  const vm = getMedia(vc);
+  const isVideoReallyImage = vm && (vm.type === 'image' || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(vm.name || vm.url));
+  const activeVideoClip = isVideoReallyImage ? null : vc;
+  const activeImageClip = isVideoReallyImage ? vc : ic;
 
   // Keep audio elements mounted and preloaded for instant responsive zero-stutter playback
   const audioClips = !tk.AUDIO?.hidden
@@ -682,15 +690,31 @@ function Preview() {
     : [];
 
   useEffect(() => {
-    sync(v.current, vc, playhead, playing, tk.VIDEO?.muted);
+    if (activeVideoClip) {
+      sync(v.current, activeVideoClip, playhead, playing, tk.VIDEO?.muted);
+    }
   });
 
   const fx = composeEffects(clips.filter((c) => c.kind === 'effect' && !tk.EFFECTS?.hidden && playhead >= c.start && playhead < c.start + c.duration), playhead);
   return (<>
     <FxDefs rgb={fx.rgb} mblur={fx.mblur} distort={fx.distort} />
     <div ref={stage} className="stage" style={{ filter: fx.filters.join(' ') || undefined, transform: fx.transforms.join(' ') || undefined }}>
-      <video ref={v} src={url(vc)} className="vid" style={{ display: vc ? 'block' : 'none', ...clipStyle(vc, playhead) }} playsInline onLoadedData={() => sync(v.current, vc, useEditor.getState().playhead, useEditor.getState().playing)} />
-      {!vc && ic && <img className="vid" style={clipStyle(ic, playhead)} src={url(ic)} alt="" />}
+      <video
+        ref={v}
+        src={url(activeVideoClip)}
+        className="vid"
+        style={{ display: activeVideoClip ? 'block' : 'none', ...clipStyle(activeVideoClip, playhead) }}
+        playsInline
+        onLoadedData={() => sync(v.current, activeVideoClip, useEditor.getState().playhead, useEditor.getState().playing)}
+      />
+      {!activeVideoClip && activeImageClip && (
+        <img
+          className="vid"
+          style={clipStyle(activeImageClip, playhead)}
+          src={url(activeImageClip)}
+          alt=""
+        />
+      )}
       {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker') && !tk[c.track]?.hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => (
         <Layer key={c.id} c={c} t={playhead} isSelected={selected === c.id} onSelect={(cid) => useEditor.getState().select(cid)} />
       ))}

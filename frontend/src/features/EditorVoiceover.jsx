@@ -88,7 +88,7 @@ export default function EditorVoiceover({ projectId, onClose }) {
       try {
         const existing = JSON.parse(localStorage.getItem(`rvs_media_${projectId}`) || '[]');
         localStorage.setItem(`rvs_media_${projectId}`, JSON.stringify([m, ...existing]));
-      } catch {}
+      } catch { }
 
       // Add to audio track at playhead position
       addClip(m);

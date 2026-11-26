@@ -67,22 +67,33 @@ function refresh() {
   return refreshing;
 }
 
-export async function api(path, { method = 'GET', body, retry = true, attempts = 0 } = {}) {
+export async function api(path, { method = 'GET', body, retry = true, attempts = 0, timeout = 4000 } = {}) {
   let res;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const accessToken = getAccess();
     const headers = { 'Content-Type': 'application/json' };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`; // only send it when a token exists
-    res = await fetch(`${BASE}${path}`, { method, ...cred(), headers, body: body ? JSON.stringify(body) : undefined });
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      ...cred(),
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
   } catch (error) {
-    console.warn(`API call failed to ${path} (attempt ${attempts + 1}):`, error);
-    // If network error (e.g. Render free tier waking up), retry automatically up to 2 times
-    if (attempts < 2 && (method === 'GET' || path.startsWith('/auth') || path.startsWith('/projects'))) {
-      await new Promise((r) => setTimeout(r, 1500));
-      return api(path, { method, body, retry, attempts: attempts + 1 });
+    clearTimeout(timer);
+    console.warn(`API call failed/timed out to ${path} (attempt ${attempts + 1}):`, error);
+    // If network error/timeout (e.g. Render free tier waking up), retry once quickly
+    if (attempts < 1 && (method === 'GET' || path.startsWith('/auth') || path.startsWith('/projects'))) {
+      await new Promise((r) => setTimeout(r, 600));
+      return api(path, { method, body, retry, attempts: attempts + 1, timeout: 3500 });
     }
-    console.error('API NETWORK ERROR:', error);
-    throw new Error('Server wake up ho raha hai ya internet check karein. Offline mode me aap direct video edit kar sakte hain.');
+    console.error('API NETWORK/TIMEOUT ERROR:', error);
+    throw new Error('Server wake up ho raha hai ya internet check karein. Offline mode active hai.');
+  } finally {
+    clearTimeout(timer);
   }
   if (res.status === 401 && retry && (await refresh())) return api(path, { method, body, retry: false });
   const data = await res.json().catch(() => ({}));

@@ -81,33 +81,20 @@ function MediaPanel({ projectId, setErr, onAdded, only }) {
     if (!files.length) return;
     setBusy(true); setErr('');
     for (const f of files) {
-      let m = null;
-      if (!String(projectId).startsWith('local-')) {
-        try {
-          const fd = new FormData(); fd.append('projectId', projectId);
-          const d = await getDuration(f); if (d) fd.append('duration', d);
-          fd.append('file', f);
-          m = await upload('/media/upload', fd);
-        } catch (e) {
-          console.warn('Upload to server failed, falling back to instant device media:', e);
-        }
-      }
-      if (!m) {
-        const d = await getDuration(f);
-        m = {
-          id: `loc-m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          projectId,
-          name: f.name,
-          type: f.type.startsWith('video/') ? 'video' : f.type.startsWith('image/') ? 'image' : 'audio',
-          url: URL.createObjectURL(f),
-          duration: d || (f.type.startsWith('image/') ? 5 : 5),
-          size: f.size
-        };
-      }
+      const d = await getDuration(f);
+      const m = {
+        id: `loc-m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        projectId,
+        name: f.name,
+        type: f.type.startsWith('video/') ? 'video' : f.type.startsWith('image/') ? 'image' : 'audio',
+        url: URL.createObjectURL(f),
+        duration: d || (f.type.startsWith('image/') ? 5 : 5),
+        size: f.size
+      };
       const updatedMedia = [m, ...useEditor.getState().media];
       setMedia(updatedMedia);
       try { localStorage.setItem(`rvs_media_${projectId}`, JSON.stringify(updatedMedia)); } catch {}
-      // AUTOMATICALLY add clip straight to timeline!
+      // AUTOMATICALLY add clip straight to timeline instantly!
       addClip(m);
       onAdded?.();
     }
@@ -1064,8 +1051,15 @@ export default function Editor() {
       const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
       const proj = local.find((x) => x.id === id) || { id, name: 'Offline Project', width: 1080, height: 1920, fps: 30, duration: 5, updatedAt: new Date().toISOString(), isLocal: true };
       const savedMedia = JSON.parse(localStorage.getItem(`rvs_media_${id}`) || '[]');
+      const b = JSON.parse(localStorage.getItem(`rvs_backup_${id}`) || 'null');
       setP(proj); setMedia(savedMedia);
-      useEditor.setState({ clips: loadClips(proj), tracks: loadTracks(proj), markers: proj.markers || [], past: [], future: [] });
+      useEditor.setState({
+        clips: b?.clips || proj.clips || loadClips(proj),
+        tracks: b?.tracks || proj.tracks || loadTracks(proj),
+        markers: b?.markers || proj.markers || [],
+        past: [],
+        future: []
+      });
       setReady(true);
       return;
     }

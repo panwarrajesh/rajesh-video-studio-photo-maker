@@ -95,7 +95,13 @@ textarea{resize:vertical}
   .zl,.zr{position:fixed;left:0;right:0;bottom:62px;height:62dvh;z-index:40;transform:translateY(120%);transition:transform .25s ease;border:0;border-top:1px solid var(--line);border-radius:20px 20px 0 0;box-shadow:0 -24px 60px #000b;overflow:hidden}
   .zl.open,.zr.open{transform:none}
   .sheet-x{display:grid;position:absolute;top:8px;right:8px;z-index:2}
-  .zr .panel,.zl .panel,.zl .tabcontent{padding-top:44px}.tabs{display:none}
+  .zr .panel{padding-top:44px}
+  .zl .panel{padding:34px 10px 10px 10px}
+  .zl .tabs{display:flex !important;gap:6px;padding:8px 10px;background:var(--s2);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:10;width:100%}
+  .zl .tabs::-webkit-scrollbar{display:none}
+  .zl .tab{flex:0 0 auto;min-width:auto;display:flex;flex-direction:row;align-items:center;gap:5px;padding:6px 12px;background:var(--s1);border:1px solid var(--line);border-radius:12px;color:var(--mut);font:700 11px Manrope,sans-serif;white-space:nowrap;cursor:pointer}
+  .zl .tab.on{background:var(--grad);color:#fff;border-color:#8fa6ff}
+  .zl .tabcontent{padding:10px 4px;padding-top:8px}
   .backdrop{display:block;position:fixed;inset:0 0 62px 0;background:#0008;z-index:30}
   .nav{display:flex;grid-area:n;background:var(--s1);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:50;position:relative}
   .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:0;color:var(--mut);font:700 10px Manrope,sans-serif;padding:4px 0;border-radius:10px;position:relative}
@@ -948,5 +954,304 @@ html, body {
     border-radius: 12px !important;
   }
 }
+
+/* ============================================================
+   NEW MODERN MOBILE DASHBOARD (CapCut / VN Inspired Style)
+   ============================================================ */
+
+/* Primary Hero Creator Banner */
+.hero-creator-banner {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 45%, #ec4899 100%);
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.35);
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.hero-creator-banner::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-creator-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1;
+  flex: 1;
+}
+.hero-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fef08a;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 10px;
+  border-radius: 20px;
+  width: fit-content;
+  backdrop-filter: blur(4px);
+}
+.hero-creator-heading {
+  font-size: 24px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.2;
+}
+.hero-creator-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  line-height: 1.4;
+}
+.hero-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.hero-main-cta {
+  background: #ffffff !important;
+  color: #4f46e5 !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  padding: 10px 18px !important;
+  border-radius: 14px !important;
+  border: none !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.hero-blank-btn {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  padding: 10px 14px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(6px);
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.hero-creator-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  z-index: 1;
+}
+.art-circle-glow {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.3);
+}
+.art-icon-large {
+  font-size: 34px;
+}
+
+/* 2. Visual How-To-Use Guide Card */
+.app-guide-box {
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+}
+.guide-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.guide-icon-pill {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: none;
+}
+.guide-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 680px) {
+  .guide-steps-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+.guide-step-card {
+  background: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--grad);
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.step-content b {
+  font-size: 13px;
+  color: var(--text);
+}
+.step-content p {
+  font-size: 11px;
+  color: var(--mut);
+  margin: 0;
+  line-height: 1.4;
+}
+.guide-tip-pill {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #34d399;
+}
+
+/* 3. In-Editor Quick Tools Pills */
+.quick-studios-sec {
+  margin-bottom: 20px;
+}
+.quick-studios-carousel {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 8px 0;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.quick-studios-carousel::-webkit-scrollbar {
+  display: none;
+}
+.quick-studio-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px 14px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.quick-studio-pill:hover, .quick-studio-pill:active {
+  background: var(--s3);
+  border-color: #6366f1;
+  transform: translateY(-2px);
+}
+.quick-studio-pill i {
+  font-style: normal;
+  font-size: 15px;
+}
+
+/* 4. Empty Projects State */
+.empty-projects-card {
+  background: var(--s1);
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  padding: 32px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+}
+.empty-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--s2);
+  color: var(--mut);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.empty-projects-card b {
+  font-size: 15px;
+  color: var(--text);
+}
+.empty-projects-card p {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 0;
+  max-width: 320px;
+}
+
+@media (max-width: 520px) {
+  .hero-creator-banner {
+    padding: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .hero-creator-art {
+    display: none;
+  }
+  .hero-creator-heading {
+    font-size: 20px;
+  }
+  .hero-action-buttons {
+    width: 100%;
+  }
+  .hero-main-cta, .hero-blank-btn {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
 
 

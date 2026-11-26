@@ -669,9 +669,10 @@ function AudioTrackPlayer({ clip, media, playhead, playing, muted }) {
   return <audio ref={aRef} src={src} preload="auto" playsInline />;
 }
 
-function Preview() {
+function Preview({ onOpenMedia }) {
   const { clips, media, playhead, playing, tracks: tk, selected } = useEditor();
   const v = useRef(), stage = useRef();
+  const [loadError, setLoadError] = useState(false);
   
   const getMedia = (c) => c && media.find((x) => x.id === c.mediaId);
   const url = (c) => { const m = getMedia(c); return m ? fileUrl(m.url) : undefined; };
@@ -683,6 +684,10 @@ function Preview() {
   const isVideoReallyImage = vm && (vm.type === 'image' || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(vm.name || vm.url));
   const activeVideoClip = isVideoReallyImage ? null : vc;
   const activeImageClip = isVideoReallyImage ? vc : ic;
+
+  useEffect(() => {
+    setLoadError(false);
+  }, [vc?.id, ic?.id]);
 
   // Keep audio elements mounted and preloaded for instant responsive zero-stutter playback
   const audioClips = !tk.AUDIO?.hidden
@@ -703,17 +708,48 @@ function Preview() {
         ref={v}
         src={url(activeVideoClip)}
         className="vid"
-        style={{ display: activeVideoClip ? 'block' : 'none', ...clipStyle(activeVideoClip, playhead) }}
+        style={{ display: activeVideoClip && !loadError ? 'block' : 'none', ...clipStyle(activeVideoClip, playhead) }}
         playsInline
-        onLoadedData={() => sync(v.current, activeVideoClip, useEditor.getState().playhead, useEditor.getState().playing)}
+        onLoadedData={() => {
+          setLoadError(false);
+          sync(v.current, activeVideoClip, useEditor.getState().playhead, useEditor.getState().playing);
+        }}
+        onError={() => setLoadError(true)}
       />
       {!activeVideoClip && activeImageClip && (
         <img
           className="vid"
-          style={clipStyle(activeImageClip, playhead)}
+          style={{ display: loadError ? 'none' : 'block', ...clipStyle(activeImageClip, playhead) }}
           src={url(activeImageClip)}
           alt=""
+          onLoad={() => setLoadError(false)}
+          onError={() => setLoadError(true)}
         />
+      )}
+      {loadError && (activeVideoClip || activeImageClip) && (
+        <div style={{
+          position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.92)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '20px', textAlign: 'center', zIndex: 50, color: '#f8fafc'
+        }}>
+          <span style={{ fontSize: '32px', marginBottom: '8px' }}>⚠️</span>
+          <b style={{ fontSize: '15px' }}>Media Session Expired</b>
+          <p style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '280px', margin: '6px 0 14px' }}>
+            Purana temporary photo/video session expire ho gaya hai. Gallery se photo/video dobara select karein.
+          </p>
+          <button
+            type="button"
+            className="btn primary sm"
+            style={{ borderRadius: '10px', padding: '8px 16px', fontWeight: 800 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setLoadError(false);
+              onOpenMedia?.();
+            }}
+          >
+            📸 + Pick Media Again
+          </button>
+        </div>
       )}
       {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker') && !tk[c.track]?.hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => (
         <Layer key={c.id} c={c} t={playhead} isSelected={selected === c.id} onSelect={(cid) => useEditor.getState().select(cid)} />
@@ -1072,10 +1108,13 @@ export default function Editor() {
 
     const isLocalProj = String(id).startsWith('local-');
     if (isLocalProj) {
-      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+      let local = [];
+      try { local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]'); } catch { local = []; }
       const proj = local.find((x) => x.id === id) || { id, name: 'Offline Project', width: 1080, height: 1920, fps: 30, duration: 5, updatedAt: new Date().toISOString(), isLocal: true };
-      const savedMedia = JSON.parse(localStorage.getItem(`rvs_media_${id}`) || '[]');
-      const b = JSON.parse(localStorage.getItem(`rvs_backup_${id}`) || 'null');
+      let savedMedia = [];
+      try { savedMedia = JSON.parse(localStorage.getItem(`rvs_media_${id}`) || '[]'); } catch { savedMedia = []; }
+      let b = null;
+      try { b = JSON.parse(localStorage.getItem(`rvs_backup_${id}`) || 'null'); } catch { b = null; }
       setP(proj); setMedia(savedMedia);
       useEditor.setState({
         clips: b?.clips || proj.clips || loadClips(proj),
@@ -1193,7 +1232,7 @@ export default function Editor() {
       </header>
       <div className={`zl ${sheet === 'left' ? 'open' : ''}`}><button className="ib sheet-x" onClick={() => setSheet(null)}><Icon name="close" /></button><LeftPanel tab={tab} setTab={setTab} projectId={id} setErr={setErr} onAdded={() => { if (mobile) setSheet(null); }} /></div>
       <section className="preview">
-        <div className="canvaswrap" ref={wrapRef} onClick={() => { if (!playing && playhead >= dur) seek(0); setPlaying(!playing); }}><div className="canvas" style={{ aspectRatio: `${p.width}/${p.height}`, '--ar': p.width / p.height }}><Preview /></div></div>
+        <div className="canvaswrap" ref={wrapRef} onClick={() => { if (!playing && playhead >= dur) seek(0); setPlaying(!playing); }}><div className="canvas" style={{ aspectRatio: `${p.width}/${p.height}`, '--ar': p.width / p.height }}><Preview onOpenMedia={() => openLeft('media')} /></div></div>
         {mobile ? <MobileTransport onFull={() => wrapRef.current?.requestFullscreen?.()} /> : (
           <div className="transport">
           <div className="tgroup">

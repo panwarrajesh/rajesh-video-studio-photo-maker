@@ -16,7 +16,16 @@ export function useAutosave(projectId, ready) {
     const snap = snapshot();
     if (!ready || busy.current || same(snap, saved.current)) return;
     busy.current = true; mark('saving');
-    try { localStorage.setItem(KEY(projectId), JSON.stringify({ at: new Date().toISOString(), ...snap })); } catch { /* storage blocked/full */ }
+    try {
+      localStorage.setItem(KEY(projectId), JSON.stringify({ at: new Date().toISOString(), ...snap }));
+    } catch {
+      // quota safety: purge oldest backups
+      try {
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('rvs_backup_') && k !== KEY(projectId)) localStorage.removeItem(k);
+        });
+      } catch {}
+    }
     if (String(projectId).startsWith('local-')) {
       saved.current = snap;
       mark('saved');

@@ -42,12 +42,14 @@ export default function Dashboard() {
     try {
       const now = Date.now();
       const ONE_DAY = 24 * 60 * 60 * 1000; // 24 hours
-      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+      let local = [];
+      try { local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]'); } catch { local = []; }
       const kept = [];
       for (const p of local) {
+        if (!p || !p.id) continue;
         const time = new Date(p.updatedAt || p.createdAt || now).getTime();
-        // If older than 1 day and marked as temporary, auto-clean it
-        if ((p.isTemp || p.name?.startsWith('Draft')) && now - time > ONE_DAY) {
+        // If older than 1 day or empty temporary project, auto-clean it
+        if ((p.isTemp || p.name?.startsWith('Draft') || p.name?.startsWith('Untitled')) && now - time > ONE_DAY) {
           localStorage.removeItem(`rvs_media_${p.id}`);
           localStorage.removeItem(`rvs_backup_${p.id}`);
         } else {
@@ -57,6 +59,28 @@ export default function Dashboard() {
       localStorage.setItem('rvs_local_projects', JSON.stringify(kept));
     } catch (e) {
       console.warn('Auto cleanup error:', e);
+      try { localStorage.removeItem('rvs_local_projects'); } catch {}
+    }
+  }, []);
+
+  // 1-Tap Complete Reset & Repair of Corrupted Cache / Stale Data
+  const resetAllCorruptData = useCallback(() => {
+    if (window.confirm('Kya aap sabhi purana/kharab temporary data aur cache saaf karna chahte hain? Sabhi corrupt temporary files delete ho jayengi aur app bilkul fresh start hogi.')) {
+      try {
+        const toRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('rvs_') || k.startsWith('loc-') || k.includes('backup') || k.includes('media'))) {
+            toRemove.push(k);
+          }
+        }
+        toRemove.forEach((k) => localStorage.removeItem(k));
+      } catch (e) {
+        console.warn('Clear error:', e);
+      }
+      setList([]);
+      alert('App data saaf ho gaya hai! Nayi fresh video shuru karein.');
+      window.location.reload();
     }
   }, []);
 
@@ -64,14 +88,24 @@ export default function Dashboard() {
   const load = useCallback(() => {
     cleanExpiredProjects();
     try {
-      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
-      const cached = JSON.parse(localStorage.getItem('rvs_cached_projects') || '[]');
-      setList([...local, ...cached]);
-    } catch {}
+      const localStr = localStorage.getItem('rvs_local_projects');
+      const local = localStr ? JSON.parse(localStr) : [];
+      const cachedStr = localStorage.getItem('rvs_cached_projects');
+      const cached = cachedStr ? JSON.parse(cachedStr) : [];
+      setList([...(Array.isArray(local) ? local : []), ...(Array.isArray(cached) ? cached : [])]);
+    } catch (err) {
+      console.warn('Corrupted local storage detected, resetting bad keys:', err);
+      try {
+        localStorage.removeItem('rvs_local_projects');
+        localStorage.removeItem('rvs_cached_projects');
+      } catch {}
+      setList([]);
+    }
 
     api(`/projects?q=${encodeURIComponent(q)}`, { timeout: 3500 })
       .then((d) => {
-        const freshLocal = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+        let freshLocal = [];
+        try { freshLocal = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]'); } catch { freshLocal = []; }
         const combined = [...freshLocal, ...d];
         setList(combined);
         try { localStorage.setItem('rvs_cached_projects', JSON.stringify(d)); } catch {}
@@ -237,10 +271,21 @@ export default function Dashboard() {
         localMediaList.push(m);
       }
 
-      localStorage.setItem(`rvs_media_${p.id}`, JSON.stringify(localMediaList));
+      // Storage quota safety: purge old transient media and backups
+      try {
+        localStorage.setItem(`rvs_media_${p.id}`, JSON.stringify(localMediaList));
+      } catch (quotaErr) {
+        console.warn('Storage quota full, auto-purging old media caches:', quotaErr);
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('rvs_media_') && k !== `rvs_media_${p.id}`) localStorage.removeItem(k);
+          if (k.startsWith('rvs_backup_')) localStorage.removeItem(k);
+        });
+        try { localStorage.setItem(`rvs_media_${p.id}`, JSON.stringify(localMediaList)); } catch {}
+      }
+
       if (first?.thumb) {
         p.thumbnailUrl = first.thumb;
-        localStorage.setItem('rvs_local_projects', JSON.stringify(local));
+        try { localStorage.setItem('rvs_local_projects', JSON.stringify(local)); } catch {}
       }
 
       // INSTANT navigate into editor with clips
@@ -282,6 +327,15 @@ export default function Dashboard() {
           <Icon name="bell" size={16} />
         </button>
         <ThemeToggle />
+        <button
+          className="btn sm"
+          onClick={resetAllCorruptData}
+          title="Clear bad temporary data & reset cache"
+          style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#f87171', borderRadius: '20px', padding: '5px 9px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <span>🧹</span>
+          <span className="apk-badge-text">Clean Data</span>
+        </button>
         {!isNative() && (
           <a
             href="/Rajesh-Video-Studio.apk"
@@ -299,6 +353,13 @@ export default function Dashboard() {
           {pm && (
             <div className="pmenu right">
               <div className="who"><b>{user?.name || 'Rajesh'}</b><small className="muted">{user?.plan || 'PRO'} Plan</small></div>
+              <button
+                onClick={resetAllCorruptData}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', width: '100%', border: 'none', background: 'transparent', color: '#f87171', fontSize: '13px', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <span>🧹</span>
+                <span>Reset & Clean Bad Data</span>
+              </button>
               {!isNative() && (
                 <a href="/Rajesh-Video-Studio.apk" download="Rajesh-Video-Studio.apk" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', textDecoration: 'none', color: '#fff', fontSize: '13px' }}>
                   <Icon name="download" size={16} />
@@ -411,6 +472,14 @@ export default function Dashboard() {
             <p>Tap '+ Pick Photos & Videos' above to start your first video project!</p>
             <button className="btn primary" onClick={() => fileRef.current?.click()} style={{ marginTop: '10px' }}>
               <Icon name="plus" size={16} /> + New Project
+            </button>
+            <button
+              className="btn sm"
+              onClick={resetAllCorruptData}
+              style={{ marginTop: '14px', background: 'transparent', border: '1px dashed var(--line)', color: 'var(--mut)', fontSize: '11px', padding: '4px 10px' }}
+              title="Fix and clean bad temporary cache"
+            >
+              🧹 Reset & Clean Corrupt Cache
             </button>
           </div>
         )}

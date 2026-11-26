@@ -65,6 +65,47 @@ export default function Dashboard() {
   const shown = useMemo(() => (sort === 'name' ? [...list].sort((a, b) => a.name.localeCompare(b.name)) : list), [list, sort]);
   const act = (fn) => async () => { setMenu(null); try { setErr(''); await fn(); load(); } catch (e) { setErr(e.message); } };
 
+  const STUDIO_TAB_MAP = {
+    video: 'media',
+    photo: 'media',
+    music: 'beatmaker',
+    sound: 'soundfx',
+    ai: 'ailab',
+    animation: 'stickers',
+    design: 'text',
+    podcast: 'voiceover',
+    screen: 'media',
+    academy: 'beatmaker',
+    marketplace: 'templates',
+    reel: 'templates',
+  };
+
+  const openStudioInEditor = (tabName = 'media') => {
+    let p = null;
+    const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+    const cached = JSON.parse(localStorage.getItem('rvs_cached_projects') || '[]');
+    const combined = [...local, ...cached];
+
+    if (combined.length > 0) {
+      p = combined[0];
+    } else {
+      p = {
+        id: `local-${Date.now()}`,
+        name: `Project ${new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}`,
+        width: 1080,
+        height: 1920,
+        fps: 30,
+        duration: 5,
+        updatedAt: new Date().toISOString(),
+        isLocal: true,
+      };
+      local.unshift(p);
+      localStorage.setItem('rvs_local_projects', JSON.stringify(local));
+    }
+
+    nav(`/editor/${p.id}?tab=${tabName}`);
+  };
+
   async function create(e) {
     e.preventDefault();
     const [width, height] = RES[f.ratio];
@@ -220,28 +261,64 @@ export default function Dashboard() {
         <InstallBanner />
         <h1 className="greet">Hi {first} 👋<span>Creative Studio Suite</span></h1>
 
+        {/* Main Hero Card to jump straight into editing */}
+        <div className="editor-entry-hero" style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.35))',
+          border: '1px solid rgba(168, 85, 247, 0.5)',
+          borderRadius: '16px',
+          padding: '16px',
+          marginBottom: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <b style={{ fontSize: '16px', color: '#fff', display: 'block' }}>🎬 Video Editor (सारे टूल्स एक जगह)</b>
+              <small style={{ color: '#c084fc', fontSize: '12px' }}>Photos, Hindi Titles, Stickers, DAW Beats, Voiceover & Export</small>
+            </div>
+            <button
+              className="btn primary"
+              onClick={() => openStudioInEditor('media')}
+              style={{ fontWeight: 800, padding: '8px 16px', borderRadius: '12px', fontSize: '13px' }}
+            >
+              Start Editing →
+            </button>
+          </div>
+        </div>
+
         {/* Quick Actions Carousel */}
         <div className="quick-actions-bar">
           <button className="quick-action-pill" onClick={() => fileRef.current?.click()}>
-            <i>🎬</i> New Video
+            <i>🎬</i> + 1-Tap Pick Video/Photos
           </button>
-          <button className="quick-action-pill" onClick={() => nav('/music-studio')}>
-            <i>🎵</i> Beat Maker
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('text')}>
+            <i>🇮🇳</i> Hindi Titles
           </button>
-          <button className="quick-action-pill" onClick={() => nav('/photo-studio')}>
-            <i>📸</i> Edit Photo
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('stickers')}>
+            <i>⭐</i> Pro Stickers
           </button>
-          <button className="quick-action-pill" onClick={() => nav('/podcast-studio')}>
-            <i>🎙️</i> Voice Record
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('effects')}>
+            <i>✨</i> Cinema VFX
           </button>
-          <button className="quick-action-pill" onClick={() => nav('/ai-lab')}>
-            <i>✨</i> AI Lab
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('beatmaker')}>
+            <i>🎵</i> Beat DAW
           </button>
-          <button className="quick-action-pill" onClick={() => nav('/design-studio')}>
-            <i>🎨</i> Thumbnail Maker
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('voiceover')}>
+            <i>🎙️</i> Voiceover Mic
           </button>
-          <button className="quick-action-pill" onClick={() => nav('/music-academy')}>
-            <i>🎹</i> Piano Academy
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('soundfx')}>
+            <i>🔊</i> Sound FX
+          </button>
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('captions')}>
+            <i>🎤</i> Auto Captions
+          </button>
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('templates')}>
+            <i>⚡</i> Viral Templates
+          </button>
+          <button className="quick-action-pill" onClick={() => openStudioInEditor('ailab')}>
+            <i>🤖</i> AI Studio
           </button>
         </div>
 
@@ -251,7 +328,7 @@ export default function Dashboard() {
 
         {/* 12 Creative Studios Section */}
         <div className="row sechead" style={{ marginTop: '20px' }}>
-          <h2 className="grow">Creative Studios</h2>
+          <h2 className="grow">Creative Studios (In-Editor)</h2>
           <small className="muted">{STUDIOS_CATALOG.length} Workspaces</small>
         </div>
 
@@ -261,12 +338,8 @@ export default function Dashboard() {
               key={s.id}
               className="studio-card"
               onClick={() => {
-                if (s.id === 'video') {
-                  if (list.length > 0) nav(`/editor/${list[0].id}`);
-                  else setModal(true);
-                } else {
-                  nav(s.path);
-                }
+                const targetTab = STUDIO_TAB_MAP[s.id] || 'media';
+                openStudioInEditor(targetTab);
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

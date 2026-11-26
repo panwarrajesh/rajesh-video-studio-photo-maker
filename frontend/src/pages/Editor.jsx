@@ -1046,8 +1046,12 @@ function Props() {
 export default function Editor() {
   const { id } = useParams();
   const loc = useLocation(), navigate = useNavigate(), addRef = useRef(new URLSearchParams(loc.search).get('add'));
+  const queryTab = new URLSearchParams(loc.search).get('tab');
   const [p, setP] = useState(null); const [err, setErr] = useState(''); const [note, setNote] = useState(''); const [showExport, setShowExport] = useState(false);
-  const panels = usePanels(); const [tab, setTab] = useState('media'); const [mini, setMini] = useState(null); const wrapRef = useRef(); const mobile = useMobile(); const [sheet, setSheet] = useState(null);
+  const panels = usePanels(); const mobile = useMobile();
+  const [tab, setTab] = useState(queryTab || 'media');
+  const [mini, setMini] = useState(null); const wrapRef = useRef();
+  const [sheet, setSheet] = useState(queryTab ? 'left' : null);
   const [ready, setReady] = useState(false); const [recover, setRecover] = useState(null);
   const { playing, playhead, clips, zoom, selected, setPlaying, seek, setZoom, removeClip, setMedia, splitClip, past, future, undo, redo, duplicate, addMarker, updateProps } = useEditor();
 
@@ -1145,6 +1149,27 @@ export default function Editor() {
           <button className="btn sm primary" onClick={() => { useEditor.setState({ clips: recover.clips, tracks: recover.tracks || DEFAULT_TRACKS(), markers: recover.markers || [] }); setRecover(null); }}>Restore</button>{' '}
           <button className="btn sm" onClick={() => { localStorage.removeItem(`rvs_backup_${id}`); setRecover(null); }}>Discard</button></span>}
         <span className="grow" /><span className="muted res">{p.fps}fps</span>
+        <button
+          type="button"
+          className="btn sm"
+          onClick={() => { setMini(null); setSheet(sheet === 'left' ? null : 'left'); }}
+          style={{
+            background: sheet === 'left' ? 'var(--grad)' : 'var(--s2)',
+            border: '1px solid var(--line)',
+            color: '#fff',
+            fontSize: '11px',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '5px 9px',
+            borderRadius: '16px',
+            cursor: 'pointer',
+          }}
+          title="Open all editing tools"
+        >
+          <span>🛠️ Tools</span>
+        </button>
         <button className="chip ratio" title="Aspect ratio" onClick={() => openMini('ratio')}>{ratioLabel(p.width, p.height)} ▾</button>
         <button className="btn primary" onClick={() => setShowExport(true)}><Icon name="download" size={16} /> Export</button>
       </header>

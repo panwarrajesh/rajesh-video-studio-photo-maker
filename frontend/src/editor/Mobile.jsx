@@ -174,7 +174,12 @@ export function MobileToolbar({ mobile, openLeft, openProps, openMini }) {
   const B = (ic, label, onClick, o = {}) => <button key={label} title={o.title || label} className={o.danger ? 'danger' : ''} onClick={onClick}><Icon name={ic} size={21} /><span>{label}</span></button>;
   return (
     <nav className="nav">{sel ? <>
-      {B('back', 'Back', () => select(null))}<i className="navsep" />
+      {B('back', 'Done', () => select(null))}
+      <button key="all-tools" onClick={() => { select(null); openLeft('media'); }} style={{ color: '#38bdf8', fontWeight: 700 }}>
+        <Icon name="plus" size={21} />
+        <span>+ Tools</span>
+      </button>
+      <i className="navsep" />
       {B('scissors', 'Split', splitClip, { title: 'Split at playhead' })}
       {B('edit', 'Edit', openProps)}
       {media && B('speed', 'Speed', () => openMini('speed'))}

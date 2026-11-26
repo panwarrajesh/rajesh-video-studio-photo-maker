@@ -37,8 +37,32 @@ export default function Dashboard() {
   const [aiOpen, setAiOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
+  // 1-Day (24-Hour) Auto Cleanup for temporary / old draft media
+  const cleanExpiredProjects = useCallback(() => {
+    try {
+      const now = Date.now();
+      const ONE_DAY = 24 * 60 * 60 * 1000; // 24 hours
+      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+      const kept = [];
+      for (const p of local) {
+        const time = new Date(p.updatedAt || p.createdAt || now).getTime();
+        // If older than 1 day and marked as temporary, auto-clean it
+        if ((p.isTemp || p.name?.startsWith('Draft')) && now - time > ONE_DAY) {
+          localStorage.removeItem(`rvs_media_${p.id}`);
+          localStorage.removeItem(`rvs_backup_${p.id}`);
+        } else {
+          kept.push(p);
+        }
+      }
+      localStorage.setItem('rvs_local_projects', JSON.stringify(kept));
+    } catch (e) {
+      console.warn('Auto cleanup error:', e);
+    }
+  }, []);
+
   // Blazing fast non-blocking project loader
   const load = useCallback(() => {
+    cleanExpiredProjects();
     try {
       const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
       const cached = JSON.parse(localStorage.getItem('rvs_cached_projects') || '[]');
@@ -56,7 +80,7 @@ export default function Dashboard() {
       .catch((e) => {
         console.warn('Projects API offline/sleeping, continuing with local projects:', e);
       });
-  }, [q]);
+  }, [cleanExpiredProjects, q]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -64,6 +88,34 @@ export default function Dashboard() {
     let res = list.filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase()));
     return sort === 'name' ? [...res].sort((a, b) => a.name.localeCompare(b.name)) : res;
   }, [list, q, sort]);
+
+  // Robust, instant delete without blocking alert or zombie cache
+  const deleteProject = useCallback((id, e) => {
+    e?.stopPropagation?.();
+    setMenu(null);
+
+    // 1. Immediately remove from React state (Instant 0ms feedback)
+    setList((prev) => prev.filter((x) => x.id !== id));
+
+    // 2. Remove from both local and cached storage
+    try {
+      const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
+      localStorage.setItem('rvs_local_projects', JSON.stringify(local.filter((x) => x.id !== id)));
+
+      const cached = JSON.parse(localStorage.getItem('rvs_cached_projects') || '[]');
+      localStorage.setItem('rvs_cached_projects', JSON.stringify(cached.filter((x) => x.id !== id)));
+
+      localStorage.removeItem(`rvs_media_${id}`);
+      localStorage.removeItem(`rvs_backup_${id}`);
+    } catch (err) {
+      console.warn('Storage delete error:', err);
+    }
+
+    // 3. Delete from cloud backend if not a purely local project
+    if (!String(id).startsWith('local-')) {
+      api(`/projects/${id}`, { method: 'DELETE' }).catch((err) => console.warn('Cloud delete error:', err));
+    }
+  }, []);
 
   const act = (fn) => async () => {
     setMenu(null);
@@ -264,16 +316,16 @@ export default function Dashboard() {
         {/* 1. PRIMARY HERO: New Project Card (CapCut/VN Mobile Style) */}
         <div className="hero-creator-banner">
           <div className="hero-creator-left">
-            <span className="hero-pill-badge">⚡ Super Fast Offline & Mobile Ready</span>
-            <h1 className="hero-creator-heading">🎬 नया वीडियो बनाएं</h1>
-            <p className="hero-creator-sub">फोन की गैलरी से वीडियो या फोटो चुनें और तुरंत 1-टैप में एडिटिंग शुरू करें</p>
+            <span className="hero-pill-badge">⚡ Ultra Fast Mobile Editor · 24h Auto-Clean Active</span>
+            <h1 className="hero-creator-heading">🎬 Create New Video</h1>
+            <p className="hero-creator-sub">Pick photos or videos from your gallery to start editing instantly (offline & fast)</p>
             <div className="hero-action-buttons">
               <button
                 className="btn primary hero-main-cta"
                 onClick={() => fileRef.current?.click()}
               >
                 <Icon name="plus" size={20} />
-                <span>+ Photos / Videos चुनें</span>
+                <span>+ Pick Photos & Videos</span>
               </button>
               <button
                 className="btn hero-blank-btn"
@@ -296,47 +348,47 @@ export default function Dashboard() {
           <div className="guide-header">
             <span className="guide-icon-pill">💡</span>
             <div>
-              <b style={{ fontSize: '15px', color: '#fff', display: 'block' }}>App कैसे चलाएं? (How to Use)</b>
-              <small style={{ color: 'var(--mut)', fontSize: '12px' }}>3 आसान स्टेप्स में प्रोफेशनल वीडियो तैयार करें</small>
+              <b style={{ fontSize: '15px', color: '#fff', display: 'block' }}>How to Use (3 Easy Steps)</b>
+              <small style={{ color: 'var(--mut)', fontSize: '12px' }}>Create professional videos in 3 simple steps</small>
             </div>
           </div>
           <div className="guide-steps-grid">
             <div className="guide-step-card">
               <div className="step-num">1</div>
               <div className="step-content">
-                <b>फोटो या वीडियो चुनें</b>
-                <p>ऊपर 'Photos/Videos चुनें' बटन दबाकर गैलरी से क्लिप्स सेलेक्ट करें। वो तुरंत 1 सेकंड में टाइमलाइन पर आ जाएंगी।</p>
+                <b>1. Select Media</b>
+                <p>Tap '+ Pick Photos & Videos' above. Your clips will load on the timeline in 1 second.</p>
               </div>
             </div>
             <div className="guide-step-card">
               <div className="step-num">2</div>
               <div className="step-content">
-                <b>अंदर सारे टूल्स इस्तेमाल करें</b>
-                <p>एडिटर के अंदर नीचे सारे 12 टूल्स हैं: <b>Hindi Titles, Pro Stickers, DAW Beats, Voiceover, Filters और VFX</b>।</p>
+                <b>2. Edit Inside Timeline</b>
+                <p>Use in-editor tools below: <b>Hindi Titles, Pro Stickers, DAW Beats, Voiceover, Filters & VFX</b>.</p>
               </div>
             </div>
             <div className="guide-step-card">
               <div className="step-num">3</div>
               <div className="step-content">
-                <b>1-क्लिक में HD वीडियो सेव करें</b>
-                <p>ऊपर <b>'Export'</b> बटन दबाकर 1080p Full HD वीडियो सीधे अपने फोन की गैलरी में सेव करें बिना किसी वाटरमार्क के।</p>
+                <b>3. Export 1080p HD Video</b>
+                <p>Tap <b>'Export'</b> at the top to save full HD 1080p video directly to your phone gallery with no watermark.</p>
               </div>
             </div>
           </div>
           <div className="guide-tip-pill">
-            <span>✨ <b>Pro Tip:</b> किसी भी क्लिप पर टैप करके आसानी से Split/Cut करें, और नीचे टूल्स बार से मनचाहा संगीत या इफ़ेक्ट जोड़ें!</span>
+            <span>✨ <b>Pro Tip:</b> Tap any clip to Split/Trim, and use the bottom tools bar to add music, Hindi titles, or effects!</span>
           </div>
         </div>
 
         {/* 3. IN-EDITOR CREATIVE TOOLS (Direct Shortcuts) */}
         <div className="quick-studios-sec">
           <div className="row sechead" style={{ marginBottom: '10px' }}>
-            <h3 className="grow" style={{ fontSize: '15px', fontWeight: 800 }}>⚡ Creative Tools (सीधे Video Editor में खोलें)</h3>
-            <small className="muted">सारे टूल्स अंदर मौजूद हैं</small>
+            <h3 className="grow" style={{ fontSize: '15px', fontWeight: 800 }}>⚡ Creative Studios (Inside Video Editor)</h3>
+            <small className="muted">All 12 creative tools available inside</small>
           </div>
           <div className="quick-studios-carousel">
             <button className="quick-studio-pill" onClick={() => openStudioInEditor('text')}>
-              <i>🇮🇳</i> <span>Hindi Titles</span>
+              <i>🇮🇳</i> <span>Hindi Titles & Text</span>
             </button>
             <button className="quick-studio-pill" onClick={() => openStudioInEditor('stickers')}>
               <i>⭐</i> <span>Pro Stickers</span>
@@ -357,7 +409,7 @@ export default function Dashboard() {
               <i>⚡</i> <span>Reels Templates</span>
             </button>
             <button className="quick-studio-pill" onClick={() => openStudioInEditor('ailab')}>
-              <i>🤖</i> <span>AI Lab</span>
+              <i>🤖</i> <span>AI Creative Lab</span>
             </button>
             <button className="quick-studio-pill" onClick={() => openStudioInEditor('media')}>
               <i>📸</i> <span>Photo Studio</span>
@@ -367,7 +419,7 @@ export default function Dashboard() {
 
         {/* 4. RECENT PROJECTS SECTION */}
         <div className="row sechead" style={{ marginTop: '22px' }}>
-          <h2 className="grow" style={{ fontSize: '18px', fontWeight: 800 }}>📁 हाल के प्रोजेक्ट्स (Recent Projects)</h2>
+          <h2 className="grow" style={{ fontSize: '18px', fontWeight: 800 }}>📁 Recent Projects</h2>
           <div className="seg">
             <button className={sort === 'recent' ? 'on' : ''} onClick={() => setSort('recent')}>Recent</button>
             <button className={sort === 'name' ? 'on' : ''} onClick={() => setSort('name')}>A–Z</button>
@@ -392,10 +444,10 @@ export default function Dashboard() {
             <div className="empty-icon-wrap">
               <Icon name="film" size={32} />
             </div>
-            <b>अभी कोई प्रोजेक्ट नहीं है</b>
-            <p>ऊपर दिए गए 'Photos / Videos चुनें' बटन पर टैप करके अपनी पहली वीडियो बनाना शुरू करें!</p>
+            <b>No projects yet</b>
+            <p>Tap '+ Pick Photos & Videos' above to start your first video project!</p>
             <button className="btn primary" onClick={() => fileRef.current?.click()} style={{ marginTop: '10px' }}>
-              <Icon name="plus" size={16} /> + New Project बनाएं
+              <Icon name="plus" size={16} /> + New Project
             </button>
           </div>
         )}
@@ -423,26 +475,36 @@ export default function Dashboard() {
                   {new Date(p.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })} · {p.width}×{p.height} · {Math.round(p.duration || 5)}s
                 </small>
               </div>
-              <button
-                className="btn sm primary resume-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  nav(`/editor/${p.id}`);
-                }}
-                style={{ borderRadius: '10px', padding: '6px 12px', fontSize: '12px', fontWeight: 700 }}
-              >
-                Edit ▶
-              </button>
-              <button
-                className="ib"
-                title="More options"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenu(menu === p.id ? null : p.id);
-                }}
-              >
-                <Icon name="dots" />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  className="btn sm primary resume-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    nav(`/editor/${p.id}`);
+                  }}
+                  style={{ borderRadius: '10px', padding: '6px 12px', fontSize: '12px', fontWeight: 700 }}
+                >
+                  Edit ▶
+                </button>
+                <button
+                  className="ib"
+                  title="Delete project"
+                  onClick={(e) => deleteProject(p.id, e)}
+                  style={{ color: '#ef4444', width: '34px', height: '34px' }}
+                >
+                  <Icon name="trash" size={16} />
+                </button>
+                <button
+                  className="ib"
+                  title="More options"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenu(menu === p.id ? null : p.id);
+                  }}
+                >
+                  <Icon name="dots" />
+                </button>
+              </div>
               {menu === p.id && (
                 <div className="pmenu" onClick={(e) => e.stopPropagation()}>
                   <button onClick={act(async () => {
@@ -466,19 +528,7 @@ export default function Dashboard() {
                       await api(`/projects/${p.id}/duplicate`, { method: 'POST' });
                     }
                   })}>Duplicate</button>
-                  <button className="danger" onClick={act(async () => {
-                    if (confirm('Delete this project?')) {
-                      if (p.isLocal || String(p.id).startsWith('local-')) {
-                        const local = JSON.parse(localStorage.getItem('rvs_local_projects') || '[]');
-                        const filtered = local.filter(x => x.id !== p.id);
-                        localStorage.setItem('rvs_local_projects', JSON.stringify(filtered));
-                        localStorage.removeItem(`rvs_media_${p.id}`);
-                        localStorage.removeItem(`rvs_backup_${p.id}`);
-                      } else {
-                        await api(`/projects/${p.id}`, { method: 'DELETE' });
-                      }
-                    }
-                  })}>Delete</button>
+                  <button className="danger" onClick={(e) => deleteProject(p.id, e)}>Delete</button>
                 </div>
               )}
             </div>

@@ -118,7 +118,7 @@ const TEMPLATES = [
 ];
 
 export default function EditorTemplates() {
-  const { addClip } = useEditor();
+  const { addClip, addLayer } = useEditor();
 
   return (
     <div className="pro-templates-panel" style={{ padding: '8px 4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -151,7 +151,7 @@ export default function EditorTemplates() {
               <button
                 type="button"
                 className="btn sm primary"
-                onClick={() => t.apply(addClip)}
+                onClick={() => t.apply(addLayer || addClip)}
                 style={{ fontSize: '11px', padding: '5px 12px', background: t.color, borderColor: t.color }}
               >
                 ⚡ Apply to Video

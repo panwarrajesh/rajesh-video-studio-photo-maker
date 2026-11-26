@@ -281,16 +281,23 @@ export default function AutoCaptions({ projectId, onClose }) {
       const sourceClip = clips.find((c) => c.track === sourceTrack) || clips.find((c) => c.track === 'VIDEO');
       const mediaId = sourceClip?.mediaId;
 
-      const res = await api('/captions/analyze', {
-        method: 'POST',
-        body: { mediaId, lyrics: textToUse, lang },
-      });
+      let res = null;
+      if (!String(projectId).startsWith('local-') && mediaId && !String(mediaId).startsWith('loc-m-')) {
+        try {
+          res = await api('/captions/analyze', {
+            method: 'POST',
+            body: { mediaId, lyrics: textToUse, lang },
+          });
+        } catch (err) {
+          console.warn('Caption analyze API failed, falling back to local timing:', err);
+        }
+      }
 
       if (res?.captions?.length > 0) {
         addCaptions(res.captions, activeStyle.props);
         setMsg(`✅ ${res.captions.length} सबटाइटल गाने के साथ टाइमलाइन पर जुड़ गए!`);
       } else {
-        // Fallback local distribution if backend has no file
+        // Fallback local distribution if backend has no file or is offline
         const lines = textToUse
           .split(/\r?\n|।|\||\. /)
           .map((l) => l.trim())

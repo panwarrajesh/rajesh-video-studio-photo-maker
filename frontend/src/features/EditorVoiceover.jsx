@@ -57,14 +57,38 @@ export default function EditorVoiceover({ projectId, onClose }) {
     setBusy(true);
     setMsg('Uploading voiceover…');
     try {
-      const file = new File([audioBlob], `Voiceover-${Date.now()}.webm`, { type: 'audio/webm' });
-      const fd = new FormData();
-      fd.append('projectId', projectId);
-      fd.append('file', file);
-      fd.append('duration', seconds || 5);
+      let m = null;
+      if (!String(projectId).startsWith('local-')) {
+        try {
+          const file = new File([audioBlob], `Voiceover-${Date.now()}.webm`, { type: 'audio/webm' });
+          const fd = new FormData();
+          fd.append('projectId', projectId);
+          fd.append('file', file);
+          fd.append('duration', seconds || 5);
+          m = await upload('/media/upload', fd);
+        } catch (e) {
+          console.warn('Server upload failed, using local voiceover:', e);
+        }
+      }
 
-      const m = await upload('/media/upload', fd);
-      setMedia([m, ...useEditor.getState().media]);
+      if (!m) {
+        m = {
+          id: `voice-${Date.now()}`,
+          projectId,
+          name: `Voiceover ${new Date().toLocaleTimeString()}`,
+          type: 'audio',
+          url: URL.createObjectURL(audioBlob),
+          duration: seconds || 5,
+          size: audioBlob.size,
+        };
+      }
+
+      const updatedMedia = [m, ...useEditor.getState().media];
+      setMedia(updatedMedia);
+      try {
+        const existing = JSON.parse(localStorage.getItem(`rvs_media_${projectId}`) || '[]');
+        localStorage.setItem(`rvs_media_${projectId}`, JSON.stringify([m, ...existing]));
+      } catch {}
 
       // Add to audio track at playhead position
       addClip(m);

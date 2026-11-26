@@ -1057,7 +1057,7 @@ export default function Editor() {
       </header>
       <div className={`zl ${sheet === 'left' ? 'open' : ''}`}><button className="ib sheet-x" onClick={() => setSheet(null)}><Icon name="close" /></button><LeftPanel tab={tab} setTab={setTab} projectId={id} setErr={setErr} onAdded={() => { if (mobile) setSheet(null); }} /></div>
       <section className="preview">
-        <div className="canvaswrap" ref={wrapRef} onClick={() => { if (!playing && playhead >= dur) seek(0); setPlaying(!playing); }}><div className="canvas" style={{ aspectRatio: `${p.width}/${p.height}`, '--ar': p.width / p.height }} onClick={(e) => e.stopPropagation()}><Preview /></div></div>
+        <div className="canvaswrap" ref={wrapRef} onClick={() => { if (!playing && playhead >= dur) seek(0); setPlaying(!playing); }}><div className="canvas" style={{ aspectRatio: `${p.width}/${p.height}`, '--ar': p.width / p.height }}><Preview /></div></div>
         {mobile ? <MobileTransport onFull={() => wrapRef.current?.requestFullscreen?.()} /> : (
           <div className="transport">
           <div className="tgroup">

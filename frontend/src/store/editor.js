@@ -46,13 +46,16 @@ export const useEditor = create((set, get) => {
     setMedia: (media) => set({ media }),
     addClip(m) {
       rec(null);
-      const rawTrack = String(m.type || 'VIDEO').toUpperCase();
+      if (m.kind || (m.track && m.track !== 'VIDEO' && m.track !== 'IMAGE' && m.track !== 'AUDIO')) {
+        return get().addLayer(m);
+      }
+      const rawTrack = String(m.type || m.track || 'VIDEO').toUpperCase();
       const track = ['VIDEO', 'IMAGE', 'AUDIO', 'TEXT', 'OVERLAY', 'EFFECTS'].includes(rawTrack)
         ? rawTrack
         : (rawTrack.includes('AUDIO') || rawTrack.includes('VOICE') ? 'AUDIO' : rawTrack.includes('IMAGE') ? 'IMAGE' : 'VIDEO');
       const end = Math.max(0, ...get().clips.filter((c) => c.track === track).map((c) => c.start + c.duration));
       const duration = Number(m.duration) || 5;
-      const clip = { id: crypto.randomUUID(), mediaId: m.id, track, start: end, duration, trimIn: 0, speed: 1, srcLen: track === 'IMAGE' ? 3600 : duration, props: { ...DEFAULT_PROPS }, keyframes: {} };
+      const clip = { id: crypto.randomUUID(), mediaId: m.id || null, kind: m.kind || null, track, start: end, duration, trimIn: 0, speed: 1, srcLen: track === 'IMAGE' ? 3600 : duration, props: { ...DEFAULT_PROPS, ...(m.props || {}) }, keyframes: {} };
       set((s) => ({ clips: [...s.clips, clip], selected: clip.id }));
     },
     addLayer({ track, kind, ...props }) {

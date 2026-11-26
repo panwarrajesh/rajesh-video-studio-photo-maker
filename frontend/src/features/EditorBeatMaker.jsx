@@ -150,14 +150,39 @@ export default function EditorBeatMaker({ projectId, onClose }) {
       const wavBlob = bufferToWave(rendered, rendered.length);
 
       setMsg('Adding to audio track…');
-      const file = new File([wavBlob], `Beat-${bpm}BPM.wav`, { type: 'audio/wav' });
-      const fd = new FormData();
-      fd.append('projectId', projectId);
-      fd.append('duration', rendered.duration);
-      fd.append('file', file);
+      let m = null;
+      if (!String(projectId).startsWith('local-')) {
+        try {
+          const file = new File([wavBlob], `Beat-${bpm}BPM.wav`, { type: 'audio/wav' });
+          const fd = new FormData();
+          fd.append('projectId', projectId);
+          fd.append('duration', rendered.duration);
+          fd.append('file', file);
+          m = await upload('/media/upload', fd);
+        } catch (e) {
+          console.warn('Server upload failed, using local beat audio:', e);
+        }
+      }
 
-      const m = await upload('/media/upload', fd);
-      setMedia([m, ...useEditor.getState().media]);
+      if (!m) {
+        m = {
+          id: `beat-${Date.now()}-${bpm}bpm`,
+          projectId,
+          name: `Beat-${bpm}BPM.wav`,
+          type: 'audio',
+          url: URL.createObjectURL(wavBlob),
+          duration: rendered.duration || 4,
+          size: wavBlob.size,
+        };
+      }
+
+      const updatedMedia = [m, ...useEditor.getState().media];
+      setMedia(updatedMedia);
+      try {
+        const existing = JSON.parse(localStorage.getItem(`rvs_media_${projectId}`) || '[]');
+        localStorage.setItem(`rvs_media_${projectId}`, JSON.stringify([m, ...existing]));
+      } catch {}
+
       addClip(m);
       setMsg('✅ Beat added to timeline!');
       setTimeout(() => setMsg(''), 3000);

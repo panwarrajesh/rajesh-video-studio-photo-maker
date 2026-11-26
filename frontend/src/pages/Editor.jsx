@@ -37,13 +37,38 @@ function getDuration(file) {
 }
 function sync(el, clip, t, playing, muted) {
   if (!el) return;
-  if (!clip) return el.pause();
-  const q = evalProps(clip, t), fade = Math.min(1, q.fadeIn > 0 ? (t - clip.start) / q.fadeIn : 1, q.fadeOut > 0 ? (clip.start + clip.duration - t) / q.fadeOut : 1);
-  el.playbackRate = clip.speed; el.muted = !!muted; el.volume = q.muted ? 0 : Math.max(0, Math.min(1, q.volume * fade));
+  if (!clip) {
+    if (!el.paused) el.pause();
+    return;
+  }
+  const inRange = t >= clip.start && t < clip.start + clip.duration;
+  if (!inRange) {
+    if (!el.paused) el.pause();
+    return;
+  }
+
+  const q = evalProps(clip, t);
+  const fade = Math.min(1, q.fadeIn > 0 ? (t - clip.start) / q.fadeIn : 1, q.fadeOut > 0 ? (clip.start + clip.duration - t) / q.fadeOut : 1);
+  const targetVol = q.muted || muted ? 0 : Math.max(0, Math.min(1, q.volume * fade));
+  if (Math.abs(el.volume - targetVol) > 0.05) el.volume = targetVol;
+  if (el.playbackRate !== clip.speed) el.playbackRate = clip.speed;
+
   const want = clip.trimIn + (t - clip.start) * clip.speed;
-  if (!playing || Math.abs(el.currentTime - want) > 0.3) { try { el.currentTime = want; } catch { /* not ready */ } }
-  if (playing && el.paused) el.play().catch(() => {});
-  if (!playing && !el.paused) el.pause();
+  if (!playing) {
+    if (!el.paused) el.pause();
+    if (Math.abs(el.currentTime - want) > 0.08) {
+      try { el.currentTime = want; } catch {}
+    }
+  } else {
+    // While playing: let playback run naturally. Only correct if drift exceeds 0.6s
+    if (Math.abs(el.currentTime - want) > 0.6) {
+      try { el.currentTime = want; } catch {}
+    }
+    if (el.paused) {
+      try { el.currentTime = want; } catch {}
+      el.play().catch(() => {});
+    }
+  }
 }
 
 function MediaPanel({ projectId, setErr, onAdded, only }) {
@@ -554,6 +579,38 @@ function LeftPanel({ tab, setTab, projectId, setErr, onAdded }) {
                 </button>
               ))}
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', margin: '4px 0 8px 0' }}>
+              <button
+                type="button"
+                className="btn sm"
+                style={{ fontSize: '11px', padding: '6px 2px', background: 'var(--s2)', border: '1px solid var(--line)' }}
+                onClick={() => add({ track: 'TEXT', kind: 'text', ...TEXT_DEFAULTS, text: 'मुख्य शीर्षक', fontSize: 8.5, y: -26, bold: true })}
+              >
+                👆 ऊपर Line 1
+              </button>
+              <button
+                type="button"
+                className="btn sm"
+                style={{ fontSize: '11px', padding: '6px 2px', background: 'var(--s2)', border: '1px solid var(--line)' }}
+                onClick={() => add({ track: 'TEXT', kind: 'text', ...TEXT_DEFAULTS, text: 'उपशीर्षक / नई लाइन', fontSize: 5.5, y: 24, bold: false })}
+              >
+                👇 नीचे Line 2
+              </button>
+              <button
+                type="button"
+                className="btn sm"
+                style={{ fontSize: '11px', padding: '6px 2px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid #10b981', color: '#34d399', fontWeight: 700 }}
+                onClick={() => {
+                  add({ track: 'TEXT', kind: 'text', ...TEXT_DEFAULTS, text: 'मुख्य शीर्षक (Line 1)', fontSize: 8, y: -15, bold: true });
+                  setTimeout(() => {
+                    useEditor.getState().addLayer({ track: 'TEXT', kind: 'text', ...TEXT_DEFAULTS, text: 'नीचे की लाइन (Line 2)', fontSize: 5.5, y: 18, color: '#e2e8f0', bold: false });
+                  }, 100);
+                }}
+              >
+                📜 2-Lines Pack
+              </button>
+            </div>
             <div className="text-grid">
               {TEXT_PRESETS[textCat].items.map((item) => (
                 <div
@@ -632,9 +689,9 @@ function Preview() {
   const url = (c) => { const m = c && media.find((x) => x.id === c.mediaId); return m ? fileUrl(m.url) : undefined; };
   const vc = at('VIDEO'), ic = at('IMAGE');
 
-  // ALL active audio clips (Beat DAW music, Voiceover mic, Sound FX, imported tracks)
-  const activeAudios = !tk.AUDIO?.hidden
-    ? clips.filter((c) => (c.track === 'AUDIO' || c.track === 'audio') && playhead >= c.start && playhead < c.start + c.duration)
+  // Keep audio elements mounted and preloaded for instant responsive zero-stutter playback
+  const audioClips = !tk.AUDIO?.hidden
+    ? clips.filter((c) => c.track === 'AUDIO' || c.track === 'audio')
     : [];
 
   useEffect(() => {
@@ -653,7 +710,7 @@ function Preview() {
       {fx.overlays.map((o, i) => <div key={i} className="ovfx" style={o} />)}
       {fx.pixel > 0 && <Pixelate stage={stage} size={fx.pixel} />}
     </div>
-    {activeAudios.map((c) => (
+    {audioClips.map((c) => (
       <AudioTrackPlayer key={c.id} clip={c} media={media} playhead={playhead} playing={playing} muted={tk.AUDIO?.muted} />
     ))}
   </>);
@@ -775,16 +832,52 @@ function TextProps({ c }) {
 
   return (
     <div className="stack" style={{ gap: 10 }}>
+      {/* 0. Quick Multi-Line & Add Line Below */}
+      <div className="prop-card" style={{ background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <b style={{ fontSize: '12px', color: '#38bdf8' }}>➕ नीचे नई लाइन (Add Line Below)</b>
+        </div>
+        <button
+          type="button"
+          className="btn sm primary"
+          style={{ width: '100%', padding: '8px 10px', fontSize: '12px', fontWeight: 700, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', borderRadius: '8px' }}
+          onClick={() => {
+            const curY = p.y || 0;
+            useEditor.getState().addLayer({
+              track: 'TEXT',
+              kind: 'text',
+              ...TEXT_DEFAULTS,
+              text: 'नीचे दूसरी लाइन',
+              y: curY >= 0 ? curY + 22 : curY + 26,
+              fontSize: Math.max(4, (p.fontSize || 7) * 0.75),
+              fontFamily: p.fontFamily || 'Poppins, sans-serif',
+              stylePreset: p.stylePreset === 'gold' ? 'gold' : 'none',
+              color: '#ffffff',
+            });
+          }}
+        >
+          + नीचे दूसरी लाइन जोड़ें (Line 2 Below)
+        </button>
+        <div className="row" style={{ marginTop: 6, gap: 4 }}>
+          <button type="button" className="btn sm" style={{ flex: 1, fontSize: '11px' }} onClick={() => set('y')(-28)}>👆 ऊपर (Top)</button>
+          <button type="button" className="btn sm" style={{ flex: 1, fontSize: '11px' }} onClick={() => set('y')(0)}>⬌ बीच में (Center)</button>
+          <button type="button" className="btn sm" style={{ flex: 1, fontSize: '11px' }} onClick={() => set('y')(30)}>👇 नीचे (Bottom)</button>
+        </div>
+      </div>
+
       {/* 1. Text Content */}
       <div className="prop-card">
         <div className="prop-card-header">✏️ Text Content / शब्द</div>
         <textarea
           rows={3}
           value={p.text || ''}
-          placeholder="Type in Hindi or English (उदा. नमस्ते या Hello)"
+          placeholder="Type in Hindi or English (Enter दबाकर अगली लाइन लिखें)"
           onChange={(e) => set('text')(e.target.value)}
           style={{ width: '100%', fontSize: 14 }}
         />
+        <small className="muted" style={{ display: 'block', margin: '2px 0 6px 0', fontSize: '10.5px' }}>
+          💡 Enter दबाकर 2 या 3 लाइनें लिख सकते हैं — स्क्रीन पर एक के नीचे एक अलग लाइन में दिखेंगी।
+        </small>
         <div className="emoji-toolbar">
           {EMOJIS.map((em) => (
             <button key={em} className="emoji-btn" onClick={() => set('text')((p.text || '') + em)}>

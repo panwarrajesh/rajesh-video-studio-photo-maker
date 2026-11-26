@@ -4,6 +4,7 @@ import { useEditor, totalDuration } from '../store/editor.js';
 import { fileUrl } from '../services/api.js';
 import { FILTERS } from '../filters/filters.js';
 import { TRANSITIONS } from '../transitions/transitions.js';
+import { EFFECTS } from '../effects/effects.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const mmss = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
@@ -79,6 +80,28 @@ function TimeLabel() {
   return <div className="mtime">{mmss(t)} <i>/ {mmss(tot)}</i></div>;
 }
 
+// Group clips into non-overlapping lanes so that every overlapping clip gets its own row beneath!
+function buildLanes(trackClips) {
+  if (!trackClips || !trackClips.length) return [];
+  const sorted = [...trackClips].sort((a, b) => a.start - b.start || b.duration - a.duration);
+  const lanes = [];
+  for (const clip of sorted) {
+    let placed = false;
+    for (const lane of lanes) {
+      const last = lane[lane.length - 1];
+      if (clip.start >= last.start + last.duration - 0.04) {
+        lane.push(clip);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      lanes.push([clip]);
+    }
+  }
+  return lanes;
+}
+
 // ---------- the phone timeline: fixed centre playhead, the timeline scrolls under it ----------
 export function MobileTimeline({ onAdd, onTrans, Wave }) {
   const clips = useEditor((s) => s.clips), media = useEditor((s) => s.media), tracks = useEditor((s) => s.tracks), zoom = useEditor((s) => s.zoom), selected = useEditor((s) => s.selected), markers = useEditor((s) => s.markers);
@@ -96,7 +119,7 @@ export function MobileTimeline({ onAdd, onTrans, Wave }) {
     ptr.current.set(e.pointerId, e.clientX);
     if (ptr.current.size === 2) { const [a, b] = [...ptr.current.values()]; g.current = { type: 'pinch', d0: Math.abs(a - b) || 1, z0: useEditor.getState().zoom }; return; }
     const S = useEditor.getState(), el = e.target.closest?.('[data-clip]'), hd = e.target.closest?.('[data-handle]'), clip = el ? S.clips.find((c) => c.id === el.dataset.clip) : null;
-    g.current = { type: hd && clip ? 'trim' : 'tap', x0: e.clientX, t0: S.playhead, clip, side: hd?.dataset.handle, moved: false, c0: clip && { ...clip }, timer: null };
+    g.current = { type: hd && clip ? 'trim' : 'tap', x0: e.clientX, y0: e.clientY, lastY: e.clientY, t0: S.playhead, clip, side: hd?.dataset.handle, moved: false, c0: clip && { ...clip }, timer: null };
     if (clip && !hd) g.current.timer = setTimeout(() => { if (g.current && !g.current.moved) { g.current.type = 'move'; navigator.vibrate?.(15); } }, 450); // long-press = move the clip
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
@@ -104,63 +127,222 @@ export function MobileTimeline({ onAdd, onTrans, Wave }) {
     if (ptr.current.has(e.pointerId)) ptr.current.set(e.pointerId, e.clientX);
     const q = g.current; if (!q) return;
     if (q.type === 'pinch') { if (ptr.current.size < 2) return; const [a, b] = [...ptr.current.values()]; useEditor.getState().setZoom(clamp((q.z0 * Math.abs(a - b)) / q.d0, 15, 300)); return; }
-    const S = useEditor.getState(), dx = e.clientX - q.x0;
-    if (Math.abs(dx) > 6) q.moved = true;
+    const S = useEditor.getState(), dx = e.clientX - q.x0, dy = e.clientY - (q.y0 || e.clientY);
+    const stepDy = e.clientY - (q.lastY ?? e.clientY);
+    q.lastY = e.clientY;
+
+    if (!q.moved && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+      q.moved = true;
+      if (q.type === 'tap' && Math.abs(dy) > Math.abs(dx) * 1.2) {
+        clearTimeout(q.timer);
+        q.type = 'scroll_y';
+      } else if (q.type === 'tap') {
+        clearTimeout(q.timer);
+        q.type = 'scrub';
+      }
+    }
+
+    if (q.type === 'scroll_y') {
+      if (view.current) view.current.scrollTop -= stepDy;
+      return;
+    }
+
     if (q.type === 'trim') {
       const c = q.c0;
       if (q.side === 'L') S.trimLeft(c.id, S.snapPoint(c.id, c.start + dx / S.zoom, S.zoom, false)); else S.trimRight(c.id, S.snapPoint(c.id, c.start + c.duration + dx / S.zoom, S.zoom, false) - c.start);
     } else if (q.type === 'move') S.moveClip(q.c0.id, S.snapStart(q.c0.id, q.c0.start + dx / S.zoom, q.c0.duration, S.zoom, false));
-    else if (q.moved) { clearTimeout(q.timer); q.type = 'scrub'; }
-    if (q.type === 'scrub') { if (S.playing) S.setPlaying(false); S.seek(clamp(q.t0 - dx / S.zoom, 0, Math.max(0, totalDuration(S.clips)))); }
+    else if (q.type === 'scrub') { if (S.playing) S.setPlaying(false); S.seek(clamp(q.t0 - dx / S.zoom, 0, Math.max(0, totalDuration(S.clips)))); }
   }
   function up(e) {
     ptr.current.delete(e.pointerId);
     const q = g.current; if (!q) return;
     if (q.type === 'pinch') { if (!ptr.current.size) g.current = null; return; }
     clearTimeout(q.timer);
-    if (!q.moved && q.type !== 'trim') useEditor.getState().select(q.clip ? q.clip.id : null);
+    if (!q.moved && q.type !== 'trim' && q.type !== 'scroll_y') useEditor.getState().select(q.clip ? q.clip.id : null);
     g.current = null;
   }
 
-  // vertical layout
-  const has = (t) => clips.some((c) => c.track === t);
-  const rows = []; let y = 38;
-  const add = (track, h, icon, label) => { rows.push({ track, h, icon, label, top: y }); y += h + 8; };
-  add('VIDEO', 64);
-  if (has('IMAGE')) add('IMAGE', 48, 'image');
-  if (has('OVERLAY')) add('OVERLAY', 40, 'smile');
-  if (has('EFFECTS')) add('EFFECTS', 40, 'sparkles');
-  add('AUDIO', 46, 'music', 'Add audio'); add('TEXT', 46, 'type', 'Add text');
+  // Dynamic multi-lane vertical layout
+  const rows = [];
+  let y = 38;
+
+  // 1. VIDEO (Main Track)
+  const videoClips = clips.filter((c) => c.track === 'VIDEO');
+  const videoLanes = buildLanes(videoClips);
+  if (videoLanes.length > 0) {
+    videoLanes.forEach((laneClips, idx) => {
+      rows.push({
+        key: `VIDEO-${idx}`,
+        track: 'VIDEO',
+        h: 64,
+        icon: 'film',
+        top: y,
+        list: laneClips,
+        isMain: idx === 0,
+        label: idx === 0 ? 'Video' : `Video ${idx + 1}`
+      });
+      y += 64 + 6;
+    });
+  } else {
+    rows.push({
+      key: 'VIDEO-empty',
+      track: 'VIDEO',
+      h: 64,
+      icon: 'film',
+      top: y,
+      list: [],
+      isMain: true
+    });
+    y += 64 + 6;
+  }
+
+  // 2. IMAGE (Photo tracks)
+  const imageClips = clips.filter((c) => c.track === 'IMAGE');
+  if (imageClips.length > 0) {
+    const imageLanes = buildLanes(imageClips);
+    imageLanes.forEach((laneClips, idx) => {
+      rows.push({
+        key: `IMAGE-${idx}`,
+        track: 'IMAGE',
+        h: 52,
+        icon: 'image',
+        top: y,
+        list: laneClips,
+        label: idx === 0 ? 'Photo' : `Photo ${idx + 1}`
+      });
+      y += 52 + 6;
+    });
+  }
+
+  // 3. OVERLAY (Stickers, PIP overlays)
+  const overlayClips = clips.filter((c) => c.track === 'OVERLAY');
+  if (overlayClips.length > 0) {
+    const overlayLanes = buildLanes(overlayClips);
+    overlayLanes.forEach((laneClips, idx) => {
+      rows.push({
+        key: `OVERLAY-${idx}`,
+        track: 'OVERLAY',
+        h: 40,
+        icon: 'smile',
+        top: y,
+        list: laneClips,
+        label: idx === 0 ? 'Overlay' : `Overlay ${idx + 1}`
+      });
+      y += 40 + 6;
+    });
+  }
+
+  // 4. EFFECTS (Pro FX Stacking - Each overlapping effect gets its own row below!)
+  const fxClips = clips.filter((c) => c.track === 'EFFECTS');
+  if (fxClips.length > 0) {
+    const fxLanes = buildLanes(fxClips);
+    fxLanes.forEach((laneClips, idx) => {
+      rows.push({
+        key: `EFFECTS-${idx}`,
+        track: 'EFFECTS',
+        h: 40,
+        icon: 'sparkles',
+        top: y,
+        list: laneClips,
+        label: idx === 0 ? 'Effects' : `FX ${idx + 1}`
+      });
+      y += 40 + 6;
+    });
+  }
+
+  // 5. AUDIO (Music, Beats, Sound FX, Voiceover)
+  const audioClips = clips.filter((c) => c.track === 'AUDIO' || c.track === 'audio');
+  const audioLanes = buildLanes(audioClips);
+  if (audioLanes.length > 0) {
+    audioLanes.forEach((laneClips, idx) => {
+      rows.push({
+        key: `AUDIO-${idx}`,
+        track: 'AUDIO',
+        h: 44,
+        icon: 'music',
+        top: y,
+        list: laneClips,
+        label: idx === 0 ? 'Audio' : `Audio ${idx + 1}`
+      });
+      y += 44 + 6;
+    });
+  } else {
+    rows.push({
+      key: 'AUDIO-empty',
+      track: 'AUDIO',
+      h: 44,
+      icon: 'music',
+      label: 'Add audio',
+      top: y,
+      list: []
+    });
+    y += 44 + 6;
+  }
+
+  // 6. TEXT (Hindi Titles, Subtitles, Multi-Line Text)
+  const textClips = clips.filter((c) => c.track === 'TEXT');
+  const textLanes = buildLanes(textClips);
+  if (textLanes.length > 0) {
+    textLanes.forEach((laneClips, idx) => {
+      rows.push({
+        key: `TEXT-${idx}`,
+        track: 'TEXT',
+        h: 42,
+        icon: 'type',
+        top: y,
+        list: laneClips,
+        label: idx === 0 ? 'Text' : `Text ${idx + 1}`
+      });
+      y += 42 + 6;
+    });
+  } else {
+    rows.push({
+      key: 'TEXT-empty',
+      track: 'TEXT',
+      h: 42,
+      icon: 'type',
+      label: 'Add text',
+      top: y,
+      list: []
+    });
+    y += 42 + 6;
+  }
+
   const main = clips.filter((c) => c.track === 'VIDEO' || c.track === 'IMAGE').sort((a, b) => a.start - b.start);
   const mainEnd = Math.max(0, ...clips.filter((c) => c.track === 'VIDEO' || c.track === 'IMAGE').map((c) => c.start + c.duration));
   const step = zoom >= 100 ? 1 : zoom >= 50 ? 2 : zoom >= 25 ? 5 : 10, secs = Math.ceil(total + 8);
 
   return (
     <div className="mtl" ref={view} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
-      <div className="mlayer" ref={layer} style={{ width }}>
+      <div className="mlayer" ref={layer} style={{ width, height: Math.max(y + 36, 260), minHeight: '100%' }}>
         <div className="mruler">{Array.from({ length: secs + 1 }, (_, i) => (i % step === 0
           ? <span key={i} className="mtick" style={{ left: i * zoom }}>{mmss(i)}</span> : i % step === Math.round(step / 2) ? <i key={i} className="mdot" style={{ left: i * zoom }} /> : null))}
           {markers.map((m) => <b key={m} className="mmk" style={{ left: m * zoom }} />)}</div>
         {rows.map((r) => {
-          const list = clips.filter((c) => c.track === r.track), hidden = tracks[r.track].hidden;
+          const list = r.list, hidden = tracks[r.track]?.hidden;
           return (
-            <div key={r.track} className={`mrow ${hidden ? 'hid' : ''}`} style={{ top: r.top, height: r.h }}>
-              {r.track === 'VIDEO'
+            <div key={r.key} className={`mrow ${hidden ? 'hid' : ''}`} style={{ top: r.top, height: r.h }}>
+              {r.isMain
                 ? <button data-act className="mmute" title="Mute clip" onClick={() => useEditor.getState().toggleTrack('VIDEO', 'muted')}><Icon name={tracks.VIDEO.muted ? 'volumeoff' : 'volume'} size={20} /><span>{tracks.VIDEO.muted ? 'Unmute' : 'Mute clip'}</span></button>
-                : <i className="mrowicon" style={{ top: (r.h - 40) / 2 }}><Icon name={r.icon} size={18} /></i>}
+                : <i className="mrowicon" style={{ top: (r.h - 40) / 2 }} title={r.label || r.track}><Icon name={r.icon} size={18} /></i>}
               {r.label && !list.length && <button data-act className="mbar" style={{ height: r.h, width: Math.max(total, 4) * zoom + 140 }} onClick={() => onAdd(r.track === 'AUDIO' ? 'audio' : 'text')}><Icon name="plus" size={16} /> {r.label}</button>}
               {list.map((c) => {
                 const m = media.find((x) => x.id === c.mediaId), sel = selected === c.id;
+                const fxLabel = c.kind === 'effect' ? (EFFECTS[c.props?.effect]?.label || c.props?.effect || 'Effect') : null;
                 return (
                   <div key={c.id} data-clip={c.id} className={`mclip ${c.track} ${sel ? 'sel' : ''}`} style={{ left: c.start * zoom, width: c.duration * zoom, height: r.h }}>
                     {(c.track === 'VIDEO' || c.track === 'IMAGE') && <Strip c={c} m={m} h={r.h} zoom={zoom} />}
                     {c.track === 'AUDIO' && Wave && <Wave c={c} media={media} />}
-                    {c.track !== 'VIDEO' && c.track !== 'IMAGE' && <span className="mlabel">{c.kind === 'text' ? c.props.text : c.kind === 'sticker' ? c.props.shape : c.kind === 'effect' ? c.props.effect : m?.name}</span>}
+                    {c.track !== 'VIDEO' && c.track !== 'IMAGE' && (
+                      <span className="mlabel" title={c.kind === 'text' ? c.props.text : fxLabel || m?.name}>
+                        {c.kind === 'text' ? c.props.text : c.kind === 'sticker' ? c.props.shape : fxLabel || m?.name}
+                      </span>
+                    )}
                     {sel && <><i data-handle="L" className="mh l" /><i data-handle="R" className="mh r" /></>}
                   </div>
                 );
               })}
-              {r.track === 'VIDEO' && <button data-act className="mplus" title="Add media" style={{ left: mainEnd * zoom + 10, height: r.h - 8, top: 4 }} onClick={() => onAdd('media')}><Icon name="plus" size={22} /></button>}
+              {r.isMain && <button data-act className="mplus" title="Add media" style={{ left: mainEnd * zoom + 10, height: r.h - 8, top: 4 }} onClick={() => onAdd('media')}><Icon name="plus" size={22} /></button>}
             </div>
           );
         })}
@@ -219,16 +401,17 @@ export function MobileToolbar({ mobile, openLeft, openProps, openMini }) {
     </> : <>
       <button key="add" className="primary" onClick={() => openLeft('media')} style={{ color: '#34d399', fontWeight: 800 }}>
         <Icon name="plus" size={21} />
-        <span>+ Photos</span>
+        <span>+ Media</span>
       </button>
+      {B('layers', 'PIP Overlay', () => openLeft('overlay'))}
       {B('sparkles', 'Pro FX', () => openLeft('effects'))}
       {B('smile', 'Stickers', () => openLeft('stickers'))}
-      {B('layers', 'Templates', () => openLeft('templates'))}
-      {B('volume', 'Audio FX', () => openLeft('soundfx'))}
+      {B('type', 'Hindi Text', () => openLeft('text'))}
+      {B('type', 'Captions', () => openLeft('captions'))}
       {B('music', 'Beat DAW', () => openLeft('beatmaker'))}
       {B('mic', 'Voiceover', () => openLeft('voiceover'))}
-      {B('type', 'Captions', () => openLeft('captions'))}
-      {B('type', 'Hindi Text', () => openLeft('text'))}
+      {B('volume', 'Audio FX', () => openLeft('soundfx'))}
+      {B('layers', 'Templates', () => openLeft('templates'))}
       {B('filter', 'Looks', () => openLeft('looks'))}
       {B('sparkles', 'AI Lab', () => openLeft('ailab'))}
       {B('crop', 'Ratio', () => openMini('ratio'))}

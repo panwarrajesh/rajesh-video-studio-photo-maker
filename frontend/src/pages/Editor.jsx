@@ -71,7 +71,7 @@ function sync(el, clip, t, playing, muted) {
   }
 }
 
-function MediaPanel({ projectId, setErr, onAdded, only }) {
+function MediaPanel({ projectId, setErr, onAdded, only, targetTrack }) {
   const { media, setMedia, addClip, removeByMedia } = useEditor();
   const [q, setQ] = useState(''); const [busy, setBusy] = useState(false);
   const fileInputRef = useRef(null);
@@ -82,20 +82,23 @@ function MediaPanel({ projectId, setErr, onAdded, only }) {
     setBusy(true); setErr('');
     for (const f of files) {
       const d = await getDuration(f);
+      const isAud = f.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac)$/i.test(f.name);
+      const isVid = f.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name);
       const m = {
         id: `loc-m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         projectId,
         name: f.name,
-        type: f.type.startsWith('video/') ? 'video' : f.type.startsWith('image/') ? 'image' : 'audio',
+        type: isVid ? 'video' : isAud ? 'audio' : 'image',
         url: URL.createObjectURL(f),
-        duration: d || (f.type.startsWith('image/') ? 5 : 5),
-        size: f.size
+        duration: d || (isAud ? 10 : 5),
+        size: f.size,
+        track: targetTrack || (targetTrack === 'OVERLAY' ? 'OVERLAY' : undefined)
       };
       const updatedMedia = [m, ...useEditor.getState().media];
       setMedia(updatedMedia);
       try { localStorage.setItem(`rvs_media_${projectId}`, JSON.stringify(updatedMedia)); } catch {}
       // AUTOMATICALLY add clip straight to timeline instantly!
-      addClip(m);
+      addClip(targetTrack ? { ...m, track: targetTrack } : m);
       onAdded?.();
     }
     setBusy(false);
@@ -112,7 +115,7 @@ function MediaPanel({ projectId, setErr, onAdded, only }) {
           padding: '12px 14px',
           fontSize: '13px',
           fontWeight: 800,
-          background: 'linear-gradient(135deg, #10b981, #059669)',
+          background: targetTrack === 'OVERLAY' ? 'linear-gradient(135deg, #ec4899, #be185d)' : 'linear-gradient(135deg, #10b981, #059669)',
           border: 'none',
           borderRadius: '12px',
           display: 'flex',
@@ -120,12 +123,12 @@ function MediaPanel({ projectId, setErr, onAdded, only }) {
           justifyContent: 'center',
           gap: '8px',
           cursor: 'pointer',
-          boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+          boxShadow: targetTrack === 'OVERLAY' ? '0 4px 14px rgba(236, 72, 153, 0.4)' : '0 4px 14px rgba(16, 185, 129, 0.4)',
         }}
         onClick={() => fileInputRef.current?.click()}
         disabled={busy}
       >
-        <span>📸 {busy ? 'Uploading & Adding to Video…' : '+ 1-Tap Pick Photo / Video from Phone'}</span>
+        <span>{targetTrack === 'OVERLAY' ? '🖼️ + Pick Photo/Video for PIP Overlay' : '📸 ' + (busy ? 'Adding to Video…' : '+ 1-Tap Pick Photo / Video from Phone')}</span>
       </button>
       <input
         ref={fileInputRef}
@@ -140,11 +143,14 @@ function MediaPanel({ projectId, setErr, onAdded, only }) {
         <div key={m.id} className="mitem"><b title={m.name}>{m.name}</b>
           <small className="muted">{m.type} · {size(m.size)}{m.duration ? ` · ${m.duration.toFixed(1)}s` : ''}</small>
           <div className="row">
-            <button className="btn sm" onClick={() => { addClip(m); onAdded?.(); }}>Add to track</button>
+            <button className="btn sm" onClick={() => { addClip(targetTrack ? { ...m, track: targetTrack } : m); onAdded?.(); }}>{targetTrack ? 'Add as Overlay' : 'Add to track'}</button>
             <button className="btn sm" onClick={wrap(async () => { const n = prompt('Rename', m.name); if (n) { const u = await api(`/media/${m.id}`, { method: 'PUT', body: { name: n } }); setMedia(media.map((x) => (x.id === m.id ? u : x))); } })}>Rename</button>
             <button className="btn sm danger" onClick={wrap(async () => { if (!confirm('Delete this media?')) return; await api(`/media/${m.id}`, { method: 'DELETE' }); removeByMedia(m.id); setMedia(media.filter((x) => x.id !== m.id)); })}>Delete</button>
-          </div></div>))}
-        {!list.length && <small className="muted">Tap green button above to pick photos or videos from phone.</small>}</div>
+          </div>
+        </div>
+      ))}
+      {!list.length && <small className="muted">Tap green button above to pick photos or videos from phone.</small>}
+      </div>
     </aside>
   );
 }
@@ -246,6 +252,37 @@ function Layer({ c, t, isSelected, onSelect }) {
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
   };
+
+  if (c.mediaId) {
+    const m = useEditor.getState().media.find((x) => x.id === c.mediaId);
+    const u = m ? fileUrl(m.url) : null;
+    const isVid = m?.type === 'video' || /\.(mp4|mov|webm)$/i.test(m?.name || '');
+    return (
+      <div
+        className={`ovl ${isSelected ? 'ovl-selected' : ''}`}
+        style={{
+          ...st,
+          width: `${p.scale ? p.scale * 40 : 40}cqw`,
+          height: 'auto',
+          pointerEvents: 'auto',
+          cursor: 'grab',
+          touchAction: 'none',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          boxShadow: '0 4px 18px rgba(0,0,0,0.5)',
+          border: isSelected ? '2px solid #38bdf8' : 'none'
+        }}
+        onClick={(e) => { e.stopPropagation(); onSelect?.(c.id); }}
+        onPointerDown={handlePointerDown}
+      >
+        {isVid ? (
+          <video src={u} autoPlay muted loop playsInline style={{ width: '100%', display: 'block', pointerEvents: 'none' }} />
+        ) : (
+          <img src={u} alt="" style={{ width: '100%', display: 'block', pointerEvents: 'none' }} />
+        )}
+      </div>
+    );
+  }
 
   if (c.kind === 'sticker') {
     const sData = p.stickerData || PRO_STICKERS.find((x) => x.id === p.shape || x.id === c.stickerId || x.id === p.stickerId);
@@ -412,6 +449,7 @@ function clipStyle(c, t) {
 
 const TABS = [
   ['media', 'film', '📸 Media'],
+  ['overlay', 'layers', '🖼️ PIP Overlay'],
   ['effects', 'sparkles', '✨ Pro FX'],
   ['stickers', 'smile', '⭐ Stickers'],
   ['templates', 'layers', '⚡ Templates'],
@@ -552,7 +590,7 @@ function LeftPanel({ tab, setTab, projectId, setErr, onAdded }) {
         {tab === 'looks' && <EditorLooks />}
         {tab === 'ailab' && <EditorAiStudio projectId={projectId} onClose={() => setTab('media')} />}
         {tab === 'audio' && <MediaPanel only="AUDIO" projectId={projectId} setErr={setErr} onAdded={onAdded} />}
-        {tab === 'overlay' && <MediaPanel only="IMAGE" projectId={projectId} setErr={setErr} onAdded={onAdded} />}
+        {tab === 'overlay' && <MediaPanel projectId={projectId} setErr={setErr} targetTrack="OVERLAY" onAdded={onAdded} />}
         {tab === 'text' && (
           <div className="tabbody">
             <div className="text-tabs-head">
@@ -751,7 +789,7 @@ function Preview({ onOpenMedia }) {
           </button>
         </div>
       )}
-      {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker') && !tk[c.track]?.hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => (
+      {clips.filter((c) => (c.kind === 'text' || c.kind === 'sticker' || c.track === 'OVERLAY') && !tk[c.track]?.hidden && playhead >= c.start && playhead < c.start + c.duration).map((c) => (
         <Layer key={c.id} c={c} t={playhead} isSelected={selected === c.id} onSelect={(cid) => useEditor.getState().select(cid)} />
       ))}
       {fx.overlays.map((o, i) => <div key={i} className="ovfx" style={o} />)}
@@ -787,6 +825,27 @@ function usePanels() { // resizable side panels + timeline height (desktop), rem
   return { p, drag, reset: (key) => () => setP((q) => ({ ...q, [key]: PANEL_DEFAULT[key] })) };
 }
 
+function buildLanes(trackClips) {
+  if (!trackClips || !trackClips.length) return [];
+  const sorted = [...trackClips].sort((a, b) => a.start - b.start || b.duration - a.duration);
+  const lanes = [];
+  for (const clip of sorted) {
+    let placed = false;
+    for (const lane of lanes) {
+      const last = lane[lane.length - 1];
+      if (clip.start >= last.start + last.duration - 0.04) {
+        lane.push(clip);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      lanes.push([clip]);
+    }
+  }
+  return lanes;
+}
+
 function Timeline({ onAdd }) {
   const { clips, media, playhead, zoom, selected, seek, select, moveClip, trimLeft, trimRight, tracks: tk, toggleTrack, markers, removeMarker, snapStart, snapPoint } = useEditor();
   const width = Math.max(totalDuration(clips) + 10, 30) * zoom;
@@ -816,19 +875,25 @@ function Timeline({ onAdd }) {
       <div className="ruler" style={{ marginLeft: 112, width }} onPointerDown={scrub}>
         {Array.from({ length: Math.ceil(width / zoom) }, (_, i) => <span key={i} style={{ left: i * zoom }}>{i}s</span>)}
         {markers.map((m) => <i key={m} className="mk" style={{ left: m * zoom }} title="Marker (double-click to remove)" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={() => removeMarker(m)} />)}</div>
-      {visTracks.map((t) => (
-        <div key={t} className={`track ${t} ${tk[t].locked ? 'locked' : ''} ${tk[t].hidden ? 'hid' : ''}`}>
-          <div className="thead"><b>{t.charAt(0) + t.slice(1).toLowerCase()}</b>
-            <button title={tk[t].locked ? 'Unlock' : 'Lock'} className={tk[t].locked ? 'on' : ''} onClick={() => toggleTrack(t, 'locked')}><Icon name="lock" size={13} /></button>
-            <button title={tk[t].hidden ? 'Show' : 'Hide'} className={tk[t].hidden ? 'on' : ''} onClick={() => toggleTrack(t, 'hidden')}><Icon name={tk[t].hidden ? 'eyeoff' : 'eye'} size={13} /></button>
-            {(t === 'VIDEO' || t === 'AUDIO') && <button title={tk[t].muted ? 'Unmute' : 'Mute'} className={tk[t].muted ? 'on' : ''} onClick={() => toggleTrack(t, 'muted')}><Icon name={tk[t].muted ? 'volumeoff' : 'volume'} size={13} /></button>}
-          </div>
-          <div className="lane" style={{ width }} onClick={(e) => { if (e.target === e.currentTarget) select(null); }}>
-            {mobile && t === 'VIDEO' && <button className="plusbtn" title="Add media" style={{ left: Math.max(0, ...clips.filter((c) => c.track === 'VIDEO').map((c) => c.start + c.duration)) * zoom + 8 }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onAdd('media'); }}><Icon name="plus" size={20} /></button>}
-            {clips.filter((c) => c.track === t).map((c) => (
-              <div key={c.id} className={`clip ${t} ${selected === c.id ? 'sel' : ''}`} style={{ left: c.start * zoom, width: c.duration * zoom }} onPointerDown={(e) => drag(e, c)} onClick={(e) => { e.stopPropagation(); select(c.id); }}>
-                <i className="h l" onPointerDown={(e) => trim(e, c, 'L')} />{(c.track === 'IMAGE' || c.track === 'VIDEO') && <Thumb c={c} media={media} />}{kfTimes(c).map((kt) => <b key={kt} className="kfd" style={{ left: kt * zoom - 4 }} />)}{c.track === 'AUDIO' && <Wave c={c} media={media} />}{c.kind === 'text' ? c.props.text : c.kind === 'sticker' ? c.props.shape : c.kind === 'effect' ? EFFECTS[c.props.effect]?.label : media.find((m) => m.id === c.mediaId)?.name}<i className="h r" onPointerDown={(e) => trim(e, c, 'R')} /></div>))}
-          </div></div>))}
+      {visTracks.map((t) => {
+        const trkClips = clips.filter((c) => c.track === t);
+        const lanes = buildLanes(trkClips);
+        const displayLanes = lanes.length ? lanes : [[]];
+        return displayLanes.map((laneClips, lIdx) => (
+          <div key={`${t}-${lIdx}`} className={`track ${t} ${tk[t]?.locked ? 'locked' : ''} ${tk[t]?.hidden ? 'hid' : ''}`}>
+            <div className="thead"><b>{t.charAt(0) + t.slice(1).toLowerCase()}{displayLanes.length > 1 ? ` ${lIdx + 1}` : ''}</b>
+              <button title={tk[t]?.locked ? 'Unlock' : 'Lock'} className={tk[t]?.locked ? 'on' : ''} onClick={() => toggleTrack(t, 'locked')}><Icon name="lock" size={13} /></button>
+              <button title={tk[t]?.hidden ? 'Show' : 'Hide'} className={tk[t]?.hidden ? 'on' : ''} onClick={() => toggleTrack(t, 'hidden')}><Icon name={tk[t]?.hidden ? 'eyeoff' : 'eye'} size={13} /></button>
+              {(t === 'VIDEO' || t === 'AUDIO') && <button title={tk[t]?.muted ? 'Unmute' : 'Mute'} className={tk[t]?.muted ? 'on' : ''} onClick={() => toggleTrack(t, 'muted')}><Icon name={tk[t]?.muted ? 'volumeoff' : 'volume'} size={13} /></button>}
+            </div>
+            <div className="lane" style={{ width }} onClick={(e) => { if (e.target === e.currentTarget) select(null); }}>
+              {mobile && t === 'VIDEO' && lIdx === 0 && <button className="plusbtn" title="Add media" style={{ left: Math.max(0, ...clips.filter((c) => c.track === 'VIDEO').map((c) => c.start + c.duration)) * zoom + 8 }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onAdd('media'); }}><Icon name="plus" size={20} /></button>}
+              {laneClips.map((c) => (
+                <div key={c.id} className={`clip ${t} ${selected === c.id ? 'sel' : ''}`} style={{ left: c.start * zoom, width: c.duration * zoom }} onPointerDown={(e) => drag(e, c)} onClick={(e) => { e.stopPropagation(); select(c.id); }}>
+                  <i className="h l" onPointerDown={(e) => trim(e, c, 'L')} />{(c.track === 'IMAGE' || c.track === 'VIDEO') && <Thumb c={c} media={media} />}{kfTimes(c).map((kt) => <b key={kt} className="kfd" style={{ left: kt * zoom - 4 }} />)}{c.track === 'AUDIO' && <Wave c={c} media={media} />}{c.kind === 'text' ? c.props.text : c.kind === 'sticker' ? c.props.shape : c.kind === 'effect' ? (EFFECTS[c.props.effect]?.label || c.props.effect) : media.find((m) => m.id === c.mediaId)?.name}<i className="h r" onPointerDown={(e) => trim(e, c, 'R')} /></div>))}
+            </div></div>
+        ));
+      })}
       {mobile && ['AUDIO', 'TEXT'].filter((k) => !visTracks.includes(k)).map((k) => <button key={k} className="addrow" onClick={() => onAdd(k === 'AUDIO' ? 'audio' : 'text')}><Icon name="plus" size={14} /> Add {k.toLowerCase()}</button>)}
       <div className="playhead" style={{ left: 112 + playhead * zoom }} />
     </div></div>
